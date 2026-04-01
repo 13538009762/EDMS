@@ -399,27 +399,53 @@ function doReplace(all: boolean) {
 }
 
 async function downloadDocx() {
-  const { data } = await api.get(`/documents/${docId.value}/export.docx`, {
-    responseType: "blob",
-  });
-  const url = URL.createObjectURL(data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `doc_${docId.value}.docx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const response = await fetch(`/api/documents/${docId.value}/export.docx`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("edms_token") || ""}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Export failed");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `doc_${docId.value}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    ElMessage.success(t("editor.exportDocx"));
+  } catch (error) {
+    ElMessage.error(t("editor.exportFailed"));
+  }
 }
 
 async function downloadPdf() {
-  const { data } = await api.get(`/documents/${docId.value}/export.pdf`, {
-    responseType: "blob",
-  });
-  const url = URL.createObjectURL(data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `doc_${docId.value}.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const response = await fetch(`/api/documents/${docId.value}/export.pdf`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("edms_token") || ""}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Export failed");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `doc_${docId.value}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    ElMessage.success(t("editor.exportPdf"));
+  } catch (error) {
+    ElMessage.error(t("editor.exportFailed"));
+  }
 }
 
 async function startApproval() {

@@ -37,11 +37,19 @@ bp = Blueprint("documents", __name__)
 
 def _doc_to_summary(doc: Document, user: User) -> dict:
     ver = doc.current_version
+    owner_name = None
+    owner_department = None
+    if doc.owner:
+        owner_name = f"{doc.owner.last_name} {doc.owner.first_name}".strip()
+        if doc.owner.department:
+            owner_department = doc.owner.department.name
     return {
         "id": doc.id,
         "title": doc.title,
         "status": doc.status,
         "owner_id": doc.owner_id,
+        "owner_name": owner_name,
+        "owner_department": owner_department,
         "is_owner": doc.owner_id == user.id,
         "my_role": user_effective_document_role(user, doc),
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
@@ -70,7 +78,81 @@ def list_documents():
         q = q.filter(Document.status == status_filter)
     if scope == "approved":
         q = q.filter(Document.status == "approved")
-    else:
+    elif scope == "collab":
+        # 只看协助编写的文档（有权限但不是自己创建的）
+        perm_ids = select(DocumentPermission.document_id).where(
+            DocumentPermission.user_id == user.id
+        )
+        flow_ids = (
+            select(ApprovalFlow.document_id)
+            .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
+            .where(ApprovalParticipant.user_id == user.id)
+        )
+        q = q.filter(
+            or_(
+                Document.id.in_(perm_ids),
+                Document.id.in_(flow_ids),
+            )
+        ).filter(Document.owner_id != user.id)
+    elif scope == "department":
+        # 只看同部门的文档
+        if user.department_id:
+            # 获取同部门的所有用户ID
+            dept_users = select(User.id).where(User.department_id == user.department_id)
+            # 查找这些用户创建的文档，加上所有已批准的文档
+            perm_ids = select(DocumentPermission.document_id).where(
+                DocumentPermission.user_id == user.id
+            )
+            flow_ids = (
+                select(ApprovalFlow.document_id)
+                .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
+                .where(ApprovalParticipant.user_id == user.id)
+            )
+            q = q.filter(
+                or_(
+                    Document.owner_id.in_(dept_users),
+                    Document.status == "approved",
+                    Document.id.in_(perm_ids),
+                    Document.id.in_(flow_ids),
+                )
+            )
+        else:
+            # 如果用户没有部门，只显示自己的文档和已批准的文档
+            perm_ids = select(DocumentPermission.document_id).where(
+                DocumentPermission.user_id == user.id
+            )
+            flow_ids = (
+                select(ApprovalFlow.document_id)
+                .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
+                .where(ApprovalParticipant.user_id == user.id)
+            )
+            q = q.filter(
+                or_(
+                    Document.owner_id == user.id,
+                    Document.status == "approved",
+                    Document.id.in_(perm_ids),
+                    Document.id.in_(flow_ids),
+                )
+            )
+    elif scope == "all":
+        # 查看全部文档（自己的+其他人的最终版本）
+        perm_ids = select(DocumentPermission.document_id).where(
+            DocumentPermission.user_id == user.id
+        )
+        flow_ids = (
+            select(ApprovalFlow.document_id)
+            .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
+            .where(ApprovalParticipant.user_id == user.id)
+        )
+        q = q.filter(
+            or_(
+                Document.owner_id == user.id,
+                Document.status == "approved",
+                Document.id.in_(perm_ids),
+                Document.id.in_(flow_ids),
+            )
+        )
+    else:  # scope == "mine"
         perm_ids = select(DocumentPermission.document_id).where(
             DocumentPermission.user_id == user.id
         )

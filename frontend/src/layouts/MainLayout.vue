@@ -9,7 +9,7 @@
       </el-menu>
       <div class="spacer" />
       <LocaleSwitcher />
-      <span v-if="auth.user" class="user">{{ auth.user.display_name }}</span>
+      <el-button v-if="auth.user" type="primary" link @click="router.push({ name: 'personal' })">{{ auth.user.display_name }}</el-button>
       <el-button type="primary" link @click="onLogout">{{ t("nav.logout") }}</el-button>
     </el-header>
     <el-main class="main">

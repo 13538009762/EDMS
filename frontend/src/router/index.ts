@@ -24,6 +24,7 @@ const router = createRouter({
           name: "diff",
           component: () => import("@/views/DiffView.vue"),
         },
+        { path: "personal", name: "personal", component: () => import("@/views/PersonalView.vue") },
       ],
     },
   ],

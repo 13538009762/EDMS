@@ -2,13 +2,17 @@
   <div>
     <div class="toolbar">
       <el-button type="primary" @click="createDoc">{{ t("library.newDoc") }}</el-button>
-      <el-input
+      <el-select
         v-model="scope"
+        clearable
         style="width: 200px; margin-left: 12px"
         :placeholder="t('library.scopePlaceholder')"
       >
-        <template #prepend>{{ t("library.scope") }}</template>
-      </el-input>
+        <el-option :label="t('library.scopeAll')" value="" />
+        <el-option :label="t('library.scopeMine')" value="mine" />
+        <el-option :label="t('library.scopeCollab')" value="collab" />
+        <el-option :label="t('library.scopeDepartment')" value="department" />
+      </el-select>
       <el-select
         v-model="statusFilter"
         clearable
@@ -27,6 +31,8 @@
       <el-table-column prop="id" :label="t('library.colId')" width="70" />
       <el-table-column prop="title" :label="t('library.colTitle')" min-width="140" />
       <el-table-column prop="status" :label="t('library.colStatus')" width="120" />
+      <el-table-column prop="owner_name" :label="t('library.colOwner')" min-width="120" />
+      <el-table-column prop="owner_department" :label="t('library.colDepartment')" min-width="120" />
       <el-table-column prop="my_role" :label="t('library.colRole')" width="100" />
       <el-table-column :label="t('library.colActions')" width="260" fixed="right">
         <template #default="{ row }">
@@ -72,6 +78,8 @@ interface DocRow {
   status: string;
   my_role?: string;
   can_manage_permissions?: boolean;
+  owner_name?: string;
+  owner_department?: string;
 }
 
 const router = useRouter();
@@ -86,7 +94,7 @@ const shareDocId = ref<number | null>(null);
 async function load() {
   loading.value = true;
   try {
-    const params: Record<string, string> = { scope: scope.value };
+    const params: Record<string, string> = { scope: scope.value || "all" };
     if (statusFilter.value) params.status = statusFilter.value;
     const { data } = await api.get("/documents", { params });
     items.value = data.items as DocRow[];
