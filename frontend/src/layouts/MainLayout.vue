@@ -1,16 +1,44 @@
 <template>
   <el-container class="layout">
     <el-header class="header">
-      <span class="brand">EDMS</span>
-      <el-menu mode="horizontal" router :default-active="route.path" class="menu">
-        <el-menu-item index="/">{{ t("nav.library") }}</el-menu-item>
-        <el-menu-item index="/inbox">{{ t("nav.inbox") }}</el-menu-item>
-        <el-menu-item index="/import">{{ t("nav.masterData") }}</el-menu-item>
+      <div class="brand-container">
+        <el-icon class="brand-icon"><Platform /></el-icon>
+        <span class="brand">EDMS</span>
+      </div>
+      <el-menu mode="horizontal" router :default-active="route.path" class="menu" :ellipsis="false">
+        <el-menu-item index="/">
+          <el-icon><Reading /></el-icon>
+          <span>{{ t("nav.library", "Library") }}</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard">
+          <el-icon><DataLine /></el-icon>
+          <span>{{ t("nav.dashboard", "Dashboard") }}</span>
+        </el-menu-item>
+        <el-menu-item index="/inbox">
+          <el-icon><Bell /></el-icon>
+          <span>{{ t("nav.inbox", "Approval Inbox") }}</span>
+        </el-menu-item>
+        <el-menu-item index="/import">
+          <el-icon><Setting /></el-icon>
+          <span>{{ t("nav.masterData", "Master Data") }}</span>
+        </el-menu-item>
       </el-menu>
       <div class="spacer" />
       <LocaleSwitcher />
+<<<<<<< HEAD
       <el-button v-if="auth.user" type="primary" link @click="router.push({ name: 'personal' })">{{ auth.user.display_name }}</el-button>
       <el-button type="primary" link @click="onLogout">{{ t("nav.logout") }}</el-button>
+=======
+      <div v-if="auth.user" class="user-profile">
+        <el-avatar size="small" :style="{ backgroundColor: 'var(--el-color-primary)' }">
+          {{ auth.user.display_name.charAt(0).toUpperCase() }}
+        </el-avatar>
+        <span class="user">{{ auth.user.display_name }}</span>
+      </div>
+      <el-button type="primary" link @click="onLogout">
+        <el-icon><SwitchButton /></el-icon>
+      </el-button>
+>>>>>>> d73d461 (Henry's v1)
     </el-header>
     <el-main class="main">
       <router-view />
@@ -24,6 +52,7 @@ import { useAuthStore } from "@/stores/auth";
 import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import LocaleSwitcher from "@/components/LocaleSwitcher.vue";
+import { Platform, Reading, DataLine, Bell, Setting, SwitchButton } from "@element-plus/icons-vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -43,31 +72,55 @@ function onLogout() {
 
 <style scoped>
 .layout {
-  height: 100%;
+  height: 100vh;
+  background-color: var(--el-bg-color-page);
 }
 .header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--el-border-color);
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+  padding: 0 24px;
+}
+.brand-container {
+  display: flex;
+  align-items: center;
+  margin-right: 32px;
+  color: var(--el-color-primary);
+}
+.brand-icon {
+  font-size: 24px;
+  margin-right: 8px;
 }
 .brand {
-  font-weight: 700;
-  margin-right: 24px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
 }
 .menu {
   flex: 0 1 auto;
   border-bottom: none;
+  background: transparent;
+}
+.el-menu-item {
+  font-weight: 500;
 }
 .main {
-  padding: 16px;
+  padding: 0;
   overflow: auto;
 }
 .spacer {
   flex: 1;
 }
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 0 12px;
+}
 .user {
-  margin-right: 12px;
-  color: var(--el-text-color-secondary);
+  font-weight: 500;
+  color: var(--el-text-color-primary);
 }
 </style>

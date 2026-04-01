@@ -22,6 +22,7 @@ def create_app(config_class=Config):
     from app.api.approvals import bp as approvals_bp
     from app.api.users import bp as users_bp
     from app.api.admin import bp as admin_bp
+    from app.api.dashboard import bp as dashboard_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
@@ -30,6 +31,7 @@ def create_app(config_class=Config):
     app.register_blueprint(comments_bp, url_prefix="/api")
     app.register_blueprint(approvals_bp, url_prefix="/api/approvals")
     app.register_blueprint(users_bp, url_prefix="/api/users")
+    app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
 
     from app.sockets import collab  # noqa: F401  registers handlers
 

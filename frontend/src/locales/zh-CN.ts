@@ -9,6 +9,7 @@ export default {
   nav: {
     library: "文档库",
     inbox: "待办审批",
+    dashboard: "数据仪表盘",
     masterData: "主数据",
     logout: "退出",
     language: "语言",
@@ -158,6 +159,7 @@ export default {
     roleComment: "可批注",
     sharingSaved: "权限已保存",
   },
+<<<<<<< HEAD
   personal: {
     title: "个人信息",
     department: "部门",
@@ -168,5 +170,16 @@ export default {
     createdDocs: "创建文档",
     collaboratedDocs: "协作文档",
     approvedDocs: "已批准文档",
+=======
+  dashboard: {
+    title: "数据仪表盘",
+    subtitle: "系统各类文档与用户统计概览",
+    totalDocs: "总文档数",
+    drafts: "草稿",
+    inApproval: "审批中",
+    totalUsers: "总人数",
+    statusDistribution: "文档状态分布",
+    activityTrend: "最近 7 日活跃趋势",
+>>>>>>> d73d461 (Henry's v1)
   },
 };

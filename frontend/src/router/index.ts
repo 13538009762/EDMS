@@ -14,6 +14,7 @@ const router = createRouter({
         { path: "", name: "library", component: () => import("@/views/LibraryView.vue") },
         { path: "import", name: "import", component: () => import("@/views/ImportView.vue") },
         { path: "inbox", name: "inbox", component: () => import("@/views/InboxView.vue") },
+        { path: "dashboard", name: "dashboard", component: () => import("@/views/DashboardView.vue") },
         {
           path: "doc/:id",
           name: "editor",

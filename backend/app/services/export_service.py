@@ -125,12 +125,63 @@ def tiptap_json_to_html(doc_json: str) -> str:
         if t == "listItem":
             inner = "".join(block(c) for c in node.get("content") or [])
             return f"<li>{inner}</li>"
+        if t == "table":
+            inner = "".join(block(c) for c in node.get("content") or [])
+            return f"<table>{inner}</table>"
+        if t == "tableRow":
+            inner = "".join(block(c) for c in node.get("content") or [])
+            return f"<tr>{inner}</tr>"
+        if t in ("tableCell", "tableHeader"):
+            tag = "th" if t == "tableHeader" else "td"
+            inner = "".join(block(c) for c in node.get("content") or [])
+            colspan = (node.get("attrs") or {}).get("colspan", 1)
+            rowspan = (node.get("attrs") or {}).get("rowspan", 1)
+            attrs_str = f' colspan="{colspan}"' if colspan > 1 else ""
+            attrs_str += f' rowspan="{rowspan}"' if rowspan > 1 else ""
+            return f"<{tag}{attrs_str}>{inner}</{tag}>"
+        if t == "image":
+            src = (node.get("attrs") or {}).get("src") or ""
+            return f"<img src='{html_escape(src)}' />"
         if t == "doc":
             return "".join(block(c) for c in node.get("content") or [])
         return "".join(block(c) for c in node.get("content") or [])
 
     body = block(root)
-    return f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>{body}</body></html>"
+    # xhtml2pdf requires a font reference to render CJK characters
+    head = """
+    <head>
+    <meta charset='utf-8'>
+    <style>
+      @font-face {
+        font-family: 'msyh';
+        src: url('c:/windows/fonts/msyh.ttc');
+      }
+      body {
+        font-family: 'msyh', sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #333;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+      th, td {
+        border: 1px solid #cccccc;
+        padding: 5px;
+      }
+      th {
+        background-color: #f5f5f5;
+      }
+      img {
+        max-width: 100%;
+      }
+    </style>
+    </head>
+    """
+    return f"<!DOCTYPE html><html>{head}<body>{body}</body></html>"
 
 
 def export_docx_bytes(doc_json: str) -> bytes:

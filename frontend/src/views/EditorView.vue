@@ -1,77 +1,180 @@
 <template>
   <div class="editor-page" v-loading="loading">
-    <div class="bar">
-      <el-input v-model="title" style="width: 240px" :disabled="!meta.can_edit" @blur="saveTitle" />
-      <el-tag :type="statusTag">{{ statusLabel }}</el-tag>
-      <el-button v-if="meta.can_edit" :loading="saving" @click="saveNow">{{ t("editor.save") }}</el-button>
-      <el-button @click="downloadDocx">{{ t("editor.exportDocx") }}</el-button>
-      <el-button @click="downloadPdf">{{ t("editor.exportPdf") }}</el-button>
-      <el-button v-if="meta.can_edit && meta.status === 'draft'" @click="showApproval = true">
-        {{ t("editor.startApproval") }}
-      </el-button>
-      <el-button v-if="meta.status === 'rejected' && isOwner" @click="newVersion">
-        {{ t("editor.newVersion") }}
-      </el-button>
-      <el-button @click="showFind = true">{{ t("editor.findReplace") }}</el-button>
-      <el-button @click="runPunctuation">{{ t("editor.punctuation") }}</el-button>
-      <el-button @click="showPage = true">{{ t("editor.pageSetup") }}</el-button>
-      <el-upload
-        v-if="meta.can_edit"
-        :show-file-list="false"
-        accept=".docx"
-        :before-upload="onImportDocx"
-      >
-        <el-button>{{ t("editor.importDocx") }}</el-button>
-      </el-upload>
-      <el-button v-if="meta.can_comment" size="small" @click="addCommentOnSelection">
-        {{ t("editor.commentSelection") }}
-      </el-button>
-      <el-button
-        v-if="meta.can_manage_permissions && meta.status === 'draft'"
-        size="small"
-        @click="showShare = true"
-      >
-        {{ t("library.share") }}
-      </el-button>
-      <span class="hint">{{ saveHint }}</span>
-    </div>
-    <div class="body">
-      <div class="main" v-if="editor">
-        <editor-content :editor="editor" class="tiptap" />
+    <div class="header-bar">
+      <div class="header-left">
+        <el-input v-model="title" style="width: 240px" :disabled="!meta.can_edit" @blur="saveTitle" />
+        <el-tag :type="statusTag" class="status-tag">{{ statusLabel }}</el-tag>
+        <span class="hint">{{ saveHint }}</span>
       </div>
-      <div class="side">
-        <h4>{{ t("editor.collaborators") }}</h4>
-        <ul>
-          <li v-for="(c, i) in collabColors" :key="i">
-            <span class="dot" :style="{ background: c.color }" /> {{ c.name }}
-          </li>
-        </ul>
-        <h4>{{ t("editor.comments") }}</h4>
-        <el-checkbox v-model="hideResolved">{{ t("editor.hideResolved") }}</el-checkbox>
-        <div v-for="m in comments" :key="m.id" class="comment">
-          <div class="meta">
-            {{ m.author_login }} · {{ m.status }}
-            <el-button
-              v-if="m.status === 'active'"
-              link
-              type="primary"
-              @click="resolveComment(m.id)"
-            >
-              {{ t("editor.resolve") }}
-            </el-button>
-          </div>
-          <div>{{ m.body }}</div>
-          <el-input
-            v-model="replyMap[m.id]"
-            :placeholder="t('editor.replyPlaceholder')"
-            size="small"
-            @keyup.enter="replyTo(m.id)"
-          />
+      
+      <div class="header-right">
+        <div class="collab-avatars" v-if="collabColors.length">
+          <el-tooltip v-for="(c, i) in collabColors" :key="i" :content="c.name" placement="bottom">
+            <div class="avatar-dot" :style="{ backgroundColor: c.color }">{{ c.name.charAt(0).toUpperCase() }}</div>
+          </el-tooltip>
         </div>
-        <el-button size="small" @click="loadComments">{{ t("editor.refreshComments") }}</el-button>
+        
+        <el-dropdown trigger="click" style="margin-right: 8px;">
+          <el-button>{{ t("editor.actions") }} <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-if="meta.can_edit" :loading="saving" @click="saveNow">{{ t("editor.save") }}</el-dropdown-item>
+              <el-dropdown-item @click="downloadDocx">{{ t("editor.exportDocx") }}</el-dropdown-item>
+              <el-dropdown-item @click="downloadPdf">{{ t("editor.exportPdf") }}</el-dropdown-item>
+              <el-dropdown-item v-if="meta.can_edit && meta.status === 'draft'" @click="showApproval = true">{{ t("editor.startApproval") }}</el-dropdown-item>
+              <el-dropdown-item v-if="meta.status === 'rejected' && isOwner" @click="newVersion">{{ t("editor.newVersion") }}</el-dropdown-item>
+              <el-dropdown-item @click="showFind = true">{{ t("editor.findReplace") }}</el-dropdown-item>
+              <el-dropdown-item @click="runPunctuation">{{ t("editor.punctuation") }}</el-dropdown-item>
+              <el-dropdown-item @click="showPage = true">{{ t("editor.pageSetup") }}</el-dropdown-item>
+              <el-dropdown-item v-if="meta.can_manage_permissions && meta.status === 'draft'" @click="showShare = true">{{ t("library.share") }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        
+        <el-upload
+          v-if="meta.can_edit"
+          :show-file-list="false"
+          accept=".docx"
+          :before-upload="onImportDocx"
+          style="display: inline-block; margin-right: 8px"
+        >
+          <el-button>{{ t("editor.importDocx") }}</el-button>
+        </el-upload>
       </div>
     </div>
 
+    <div class="editor-toolbar" v-if="editor && meta.can_edit">
+      <el-select v-model="currentFontFamily" size="small" style="width: 120px" @change="setFontFamily">
+        <el-option label="Default" value="Inter, sans-serif" />
+        <el-option label="Arial" value="Arial" />
+        <el-option label="Courier New" value="Courier New" />
+        <el-option label="Georgia" value="Georgia" />
+        <el-option label="Times New Roman" value="Times New Roman" />
+      </el-select>
+      <el-select v-model="currentFontSize" size="small" style="width: 80px" @change="setFontSize">
+        <el-option label="12px" value="12px" />
+        <el-option label="14px" value="14px" />
+        <el-option label="16px" value="16px" />
+        <el-option label="18px" value="18px" />
+        <el-option label="24px" value="24px" />
+        <el-option label="36px" value="36px" />
+      </el-select>
+      <div class="toolbar-divider"></div>
+      
+      <el-button-group class="toolbar-group">
+        <el-button size="small" :class="{ 'is-active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><b style="font-family: serif">B</b></el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i style="font-family: serif">I</i></el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><u style="font-family: serif">U</u></el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><s style="font-family: serif">S</s></el-button>
+      </el-button-group>
+
+      <div class="toolbar-divider"></div>
+
+      <el-button-group class="toolbar-group">
+        <el-button size="small" :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }" @click="editor.chain().focus().toggleHeading({ level: 1 }).run()">H1</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">H2</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }" @click="editor.chain().focus().toggleHeading({ level: 3 }).run()">H3</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('paragraph') }" @click="editor.chain().focus().setParagraph().run()">P</el-button>
+      </el-button-group>
+
+      <div class="toolbar-divider"></div>
+
+      <el-button-group class="toolbar-group">
+        <el-button size="small" :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }" @click="editor.chain().focus().setTextAlign('left').run()">L</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }" @click="editor.chain().focus().setTextAlign('center').run()">C</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }" @click="editor.chain().focus().setTextAlign('right').run()">R</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }" @click="editor.chain().focus().setTextAlign('justify').run()">J</el-button>
+      </el-button-group>
+
+      <div class="toolbar-divider"></div>
+
+      <el-button-group class="toolbar-group">
+        <el-button size="small" :class="{ 'is-active': editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()">• List</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('orderedList') }" @click="editor.chain().focus().toggleOrderedList().run()">1. List</el-button>
+      </el-button-group>
+      
+      <div class="toolbar-divider"></div>
+      
+      <el-button-group class="toolbar-group">
+        <el-button size="small" @click="doOutdent">- Indent</el-button>
+        <el-button size="small" @click="doIndent">+ Indent</el-button>
+      </el-button-group>
+
+      <div class="toolbar-divider"></div>
+      <el-button size="small" @click="insertImage">Img</el-button>
+      <el-button size="small" @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()">Table</el-button>
+
+      <div class="toolbar-divider"></div>
+      <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; margin-right:8px;">
+        <label>Col</label>
+        <input type="color" v-model="currentColor" @change="setTextColor" style="width: 24px; height: 24px; padding: 0; border: none; cursor: pointer" />
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px; font-size: 12px">
+        <label>Bg</label>
+        <input type="color" v-model="currentHighlight" @change="setHighlight" style="width: 24px; height: 24px; padding: 0; border: none; cursor: pointer" />
+      </div>
+
+    </div>
+
+    <div class="body">
+      <div class="main-wrapper" v-if="editor">
+        <div class="main-paper" :class="page.paperFormat">
+          <editor-content :editor="editor" class="tiptap" :style="{ paddingTop: page.marginTop + 'px', paddingBottom: page.marginBottom + 'px' }" />
+        </div>
+      </div>
+      <div class="side">
+        <div class="comments-header">
+          <h4>{{ t("editor.comments") }}</h4>
+          <el-button v-if="meta.can_comment" size="small" type="primary" style="width: 100%; margin-top: 8px; margin-bottom: 12px;" @click="addCommentOnSelection">
+            {{ t("editor.commentSelection") }}
+          </el-button>
+        </div>
+        
+        <div class="comment-filters">
+          <el-select v-model="filterAuthor" size="small" placeholder="Author" clearable class="filter-item">
+            <el-option v-for="a in authorOptions" :key="a" :label="a" :value="a" />
+          </el-select>
+          <el-select v-model="filterStatus" size="small" placeholder="Status" class="filter-item">
+            <el-option label="All" value="all" />
+            <el-option label="Active" value="active" />
+            <el-option label="Resolved" value="resolved" />
+          </el-select>
+          <el-date-picker v-model="filterDate" type="date" placeholder="Date" size="small" class="filter-item" value-format="YYYY-MM-DD" style="width:100%" />
+        </div>
+
+        <div class="comments-list">
+          <div v-for="m in filteredComments" :key="m.id" class="comment" :class="{ 'resolved': m.status === 'resolved' }" @click="scrollToComment(m.id)">
+            <div class="meta">
+              <div style="font-weight: 500;">{{ m.author_login }}</div>
+              <div class="meta-right">
+                <span>{{ m.created_at ? m.created_at.split('T')[0] : '' }} · {{ m.status }}</span>
+                <el-button
+                  v-if="m.status === 'active'"
+                  link
+                  type="primary"
+                  @click.stop="resolveComment(m.id)"
+                  size="small"
+                >
+                  {{ t("editor.resolve") }}
+                </el-button>
+              </div>
+            </div>
+            <div class="comment-body">{{ m.body }}</div>
+            <el-input
+              v-model="replyMap[m.id]"
+              :placeholder="t('editor.replyPlaceholder')"
+              size="small"
+              @keyup.enter="replyTo(m.id)"
+              @click.stop
+            />
+          </div>
+          <el-empty v-if="filteredComments.length === 0" description="No comments" :image-size="60" />
+        </div>
+        <el-button size="small" @click="loadComments" style="width:100%; margin-top: 12px;">{{ t("editor.refreshComments") }}</el-button>
+      </div>
+    </div>
+
+    <!-- Modals -->
     <el-dialog v-model="showFind" :title="t('editor.findReplaceTitle')" width="480px">
       <el-input v-model="findText" :placeholder="t('editor.findPlaceholder')" />
       <el-input
@@ -87,6 +190,13 @@
 
     <el-dialog v-model="showPage" :title="t('editor.pageSetupTitle')" width="400px">
       <el-form label-width="140px">
+        <el-form-item label="Paper Format">
+          <el-select v-model="page.paperFormat">
+            <el-option label="A4" value="A4" />
+            <el-option label="Letter" value="Letter" />
+            <el-option label="Legal" value="Legal" />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="t('editor.orientation')">
           <el-select v-model="page.orientation">
             <el-option :label="t('editor.portrait')" value="portrait" />
@@ -146,6 +256,16 @@ import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
+import FontFamily from "@tiptap/extension-font-family";
+import Image from "@tiptap/extension-image";
+import Dropcursor from "@tiptap/extension-dropcursor";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import { ArrowDown } from "@element-plus/icons-vue";
+
+import { FontSize, LineHeight, Indent, CommentMark } from "@/utils/tiptapExtensions";
 import api from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { attachDocCollab } from "@/composables/useDocSocket";
@@ -171,7 +291,7 @@ const meta = ref({
   owner_id: 0,
 });
 const showShare = ref(false);
-const hideResolved = ref(true);
+const hideResolved = ref(true); // Keeping for loadComments API compatibility, though we replaced with frontend block
 const comments = ref<
   Array<{
     id: number;
@@ -179,6 +299,7 @@ const comments = ref<
     body: string;
     status: string;
     anchor_json?: string;
+    created_at?: string;
   }>
 >([]);
 const replyMap = ref<Record<number, string>>({});
@@ -192,12 +313,37 @@ const approverIds = ref<number[]>([]);
 const userOptions = ref<Array<{ id: number; login_name: string }>>([]);
 const page = ref({
   orientation: "portrait",
-  marginTop: 20,
-  marginBottom: 20,
+  marginTop: 40,
+  marginBottom: 40,
   showPageNumber: true,
+  paperFormat: "A4",
 });
 const saveHint = ref("");
 const collabColors = ref<Array<{ name: string; color: string }>>([]);
+
+// Toolbars and Filters
+const currentFontFamily = ref("");
+const currentFontSize = ref("");
+const currentColor = ref("#000000");
+const currentHighlight = ref("#ffffff");
+
+const filterAuthor = ref("");
+const filterStatus = ref("all");
+const filterDate = ref<string | null>(null);
+
+const authorOptions = computed(() => {
+  const set = new Set(comments.value.map(c => c.author_login));
+  return Array.from(set);
+});
+
+const filteredComments = computed(() => {
+  return comments.value.filter(c => {
+    if (filterAuthor.value && c.author_login !== filterAuthor.value) return false;
+    if (filterStatus.value !== "all" && c.status !== filterStatus.value) return false;
+    if (filterDate.value && c.created_at && !c.created_at.startsWith(filterDate.value)) return false;
+    return true;
+  });
+});
 
 const isOwner = computed(() => auth.user?.id === meta.value.owner_id);
 
@@ -251,6 +397,17 @@ const editor = useEditor({
     CollaborationCursor.configure({
       provider: { awareness } as never,
     }),
+    FontFamily,
+    Image,
+    Dropcursor,
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    FontSize,
+    LineHeight,
+    Indent,
+    CommentMark,
   ],
   editable: true,
   onUpdate: () => scheduleSave(),
@@ -262,6 +419,51 @@ function scheduleSave() {
   saveTimer = window.setTimeout(() => saveNow(), 2000);
 }
 let saveTimer = 0;
+
+function doIndent() {
+  (editor.value?.chain().focus() as any).indent().run();
+}
+
+function doOutdent() {
+  (editor.value?.chain().focus() as any).outdent().run();
+}
+
+function setFontFamily(val: string) {
+  if (val) editor.value?.chain().focus().setFontFamily(val).run();
+  else editor.value?.chain().focus().unsetFontFamily().run();
+}
+
+function setFontSize(val: string) {
+  if (val) (editor.value?.chain().focus() as any).setFontSize(val).run();
+  else (editor.value?.chain().focus() as any).unsetFontSize().run();
+}
+
+function setTextColor(e: Event) {
+  const target = e.target as HTMLInputElement;
+  editor.value?.chain().focus().setColor(target.value).run();
+}
+
+function setHighlight(e: Event) {
+  const target = e.target as HTMLInputElement;
+  editor.value?.chain().focus().toggleHighlight({ color: target.value }).run();
+}
+
+async function insertImage() {
+  const { value } = await ElMessageBox.prompt(t("Enter image URL"), "Insert Image", {
+    confirmButtonText: t("editor.ok"),
+    cancelButtonText: t("inbox.cancel"),
+  });
+  if (value) {
+    editor.value?.chain().focus().setImage({ src: value }).run();
+  }
+}
+
+function scrollToComment(id: number) {
+  const el = document.querySelector(`.tiptap span[data-comment-id="${id}"]`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
 
 async function loadDoc() {
   loading.value = true;
@@ -341,8 +543,9 @@ async function savePageSettings() {
 }
 
 async function loadComments() {
+  // We fetch all comments by setting hide_resolved to 0, since we filter locally now.
   const { data } = await api.get(`/documents/${docId.value}/comments`, {
-    params: { hide_resolved: hideResolved.value ? 1 : 0 },
+    params: { hide_resolved: 0 },
   });
   comments.value = data.items;
 }
@@ -490,10 +693,13 @@ async function addCommentOnSelection() {
     cancelButtonText: t("inbox.cancel"),
   });
   if (!value?.trim()) return;
-  await api.post(`/documents/${docId.value}/comments`, {
+  const { data } = await api.post(`/documents/${docId.value}/comments`, {
     body: value.trim(),
-    anchor_json: { from, to },
+    anchor_json: JSON.stringify({ from, to }),
   });
+  // Highlight the text using our custom comment extension
+  ;(ed.chain().focus() as any).setComment(data.id).run();
+  await saveNow();
   loadComments();
 }
 
@@ -528,59 +734,198 @@ watch(
   display: flex;
   flex-direction: column;
   height: calc(100vh - 80px);
+  background-color: var(--el-bg-color-page, #f5f7fa);
 }
-.bar {
+
+/* Header */
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: white;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.status-tag { margin-left: 8px; }
+.hint { font-size: 12px; color: var(--el-text-color-secondary); }
+
+/* Avatars */
+.collab-avatars {
+  display: flex;
+  margin-right: 16px;
+}
+.avatar-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  border: 2px solid white;
+  margin-left: -8px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.avatar-dot:first-child { margin-left: 0; }
+
+/* Toolbar */
+.editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 8px 16px;
+  background-color: white;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  z-index: 10;
 }
-.hint {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--el-border-color-lighter);
+  margin: 0 4px;
 }
+.toolbar-group .el-button {
+  padding: 5px 8px;
+}
+.toolbar-group .el-button.is-active {
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+}
+
+/* Body and Paper */
 .body {
   display: flex;
   flex: 1;
   min-height: 0;
-  gap: 16px;
+  overflow: hidden;
 }
-.main {
+.main-wrapper {
   flex: 1;
   overflow: auto;
-  border: 1px solid var(--el-border-color);
-  padding: 16px;
+  padding: 32px;
+  display: flex;
+  justify-content: center;
+}
+.main-paper {
   background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-height: 1056px;
+  box-sizing: border-box;
+  padding: 40px;
+  transition: width 0.3s ease;
 }
+/* Paper Formats */
+.main-paper.A4 { width: 794px; }
+.main-paper.Letter { width: 816px; min-height: 1056px; }
+.main-paper.Legal { width: 816px; min-height: 1344px; }
+
+/* Sidebar */
 .side {
-  width: 280px;
-  overflow: auto;
-  border: 1px solid var(--el-border-color);
-  padding: 12px;
+  width: 320px;
+  background-color: white;
+  border-left: 1px solid var(--el-border-color);
+  display: flex;
+  flex-direction: column;
 }
-.tiptap {
-  min-height: 400px;
-  outline: none;
+.comments-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
-.tiptap :deep(.ProseMirror) {
-  min-height: 400px;
-  outline: none;
+.comments-header h4 { margin: 0; }
+.comment-filters {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background-color: #fafafa;
+}
+.comments-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px;
 }
 .comment {
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  padding: 8px 0;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 12px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.comment:hover {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.comment.resolved {
+  opacity: 0.6;
+  background-color: #f9f9f9;
 }
 .meta {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+  font-size: 13px;
 }
-.dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
+.meta-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.comment-body {
+  font-size: 14px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* Tiptap Editor Core */
+.tiptap {
+  outline: none;
+  min-height: 100%;
+}
+.tiptap :deep(.ProseMirror) {
+  outline: none;
+  min-height: 100%;
+}
+.tiptap :deep(table) {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+.tiptap :deep(table td),
+.tiptap :deep(table th) {
+  min-width: 1em;
+  border: 1px solid var(--el-border-color-darker);
+  padding: 5px 8px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+.tiptap :deep(table th) {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f5f5f5;
+}
+.tiptap :deep(img) {
+  max-width: 100%;
+  height: auto;
 }
 </style>
