@@ -153,22 +153,8 @@ def list_documents():
             )
         )
     else:  # scope == "mine"
-        perm_ids = select(DocumentPermission.document_id).where(
-            DocumentPermission.user_id == user.id
-        )
-        flow_ids = (
-            select(ApprovalFlow.document_id)
-            .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
-            .where(ApprovalParticipant.user_id == user.id)
-        )
-        q = q.filter(
-            or_(
-                Document.owner_id == user.id,
-                Document.status == "approved",
-                Document.id.in_(perm_ids),
-                Document.id.in_(flow_ids),
-            )
-        )
+        # 只看自己创建的文档（owner）
+        q = q.filter(Document.owner_id == user.id)
     docs = q.order_by(Document.updated_at.desc()).all()
     return jsonify({"items": [_doc_to_summary(d, user) for d in docs]})
 
@@ -406,6 +392,43 @@ def get_permissions(doc_id: int):
             ]
         }
     )
+
+
+@bp.get("/<int:doc_id>/collaborators")
+@jwt_required()
+def get_collaborators(doc_id: int):
+    """获取文档的协作者列表（当前有权限的用户）"""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    doc = db.session.get(Document, doc_id)
+    if not doc or not user_can_view_document(user, doc):
+        return jsonify({"error": "Not found"}), 404
+    
+    # 获取有权限的用户（包括 owner 和有权限的用户）
+    collabs = []
+    # 添加 owner
+    if doc.owner:
+        collabs.append({
+            "user_id": doc.owner.id,
+            "login_name": doc.owner.login_name,
+            "name": doc.owner.display_name(),
+            "is_owner": True
+        })
+    
+    # 获取有权限的用户
+    perms = DocumentPermission.query.filter_by(document_id=doc.id).all()
+    for p in perms:
+        if p.user:
+            collabs.append({
+                "user_id": p.user.id,
+                "login_name": p.user.login_name,
+                "name": p.user.display_name(),
+                "role": p.role,
+                "is_owner": False
+            })
+    
+    return jsonify({"items": collabs})
 
 
 @bp.get("/<int:doc_id>/export.docx")

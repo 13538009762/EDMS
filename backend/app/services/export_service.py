@@ -148,16 +148,13 @@ def tiptap_json_to_html(doc_json: str) -> str:
 
     body = block(root)
     # xhtml2pdf requires a font reference to render CJK characters
+    # Use simple font-family without @font-face to avoid permission issues
     head = """
     <head>
     <meta charset='utf-8'>
     <style>
-      @font-face {
-        font-family: 'msyh';
-        src: url('c:/windows/fonts/msyh.ttc');
-      }
       body {
-        font-family: 'msyh', sans-serif;
+        font-family: "Microsoft YaHei", "SimSun", sans-serif;
         font-size: 14px;
         line-height: 1.5;
         color: #333;

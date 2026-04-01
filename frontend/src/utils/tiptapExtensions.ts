@@ -30,10 +30,10 @@ export const FontSize = Extension.create({
   },
   addCommands() {
     return {
-      setFontSize: (fontSize: string) => ({ chain }) => {
+      setFontSize: (fontSize: string) => ({ chain }: any) => {
         return chain().setMark('textStyle', { fontSize }).run()
       },
-      unsetFontSize: () => ({ chain }) => {
+      unsetFontSize: () => ({ chain }: any) => {
         return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run()
       },
     } as any
@@ -70,7 +70,7 @@ export const LineHeight = Extension.create({
   },
   addCommands() {
     return {
-      setLineHeight: (lineHeight: string) => ({ commands }) => {
+      setLineHeight: (lineHeight: string) => ({ commands }: any) => {
         let applied = false
         this.options.types.forEach((type: string) => {
           if (commands.updateAttributes(type, { lineHeight })) {
@@ -79,7 +79,7 @@ export const LineHeight = Extension.create({
         })
         return applied
       },
-      unsetLineHeight: () => ({ commands }) => {
+      unsetLineHeight: () => ({ commands }: any) => {
         let applied = false
         this.options.types.forEach((type: string) => {
           if (commands.resetAttributes(type, 'lineHeight')) {
@@ -127,9 +127,9 @@ export const Indent = Extension.create({
   },
   addCommands() {
     return {
-      indent: () => ({ tr, state, dispatch }) => {
+      indent: () => ({ tr, state, dispatch }: any) => {
         const { selection } = state
-        tr.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+        tr.doc.nodesBetween(selection.from, selection.to, (node: any, pos: number) => {
           if (this.options.types.includes(node.type.name)) {
             const indent = (node.attrs.indent || 0) + 1
             if (indent <= this.options.maxIndent) {
@@ -140,9 +140,9 @@ export const Indent = Extension.create({
         if (dispatch) dispatch(tr)
         return true
       },
-      outdent: () => ({ tr, state, dispatch }) => {
+      outdent: () => ({ tr, state, dispatch }: any) => {
         const { selection } = state
-        tr.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+        tr.doc.nodesBetween(selection.from, selection.to, (node: any, pos: number) => {
           if (this.options.types.includes(node.type.name)) {
             const indent = (node.attrs.indent || 0) - 1
             if (indent >= this.options.minIndent) {
@@ -193,13 +193,13 @@ export const CommentMark = Mark.create({
 
   addCommands() {
     return {
-      setComment: (commentId: string | number) => ({ commands }) => {
+      setComment: (commentId: string | number) => ({ commands }: any) => {
         return commands.setMark(this.name, { commentId })
       },
-      unsetComment: () => ({ commands }) => {
+      unsetComment: () => ({ commands }: any) => {
         return commands.unsetMark(this.name)
       },
-      unsetSpecificComment: (commentId: string | number) => ({ tr, dispatch }) => {
+      unsetSpecificComment: (commentId: string | number) => ({ tr, dispatch }: any) => {
         // Advanced: removing specific comments
         return true
       }

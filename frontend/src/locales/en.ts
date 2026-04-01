@@ -9,7 +9,6 @@ export default {
   nav: {
     library: "Library",
     inbox: "Approval inbox",
-    dashboard: "Dashboard",
     masterData: "Master data",
     logout: "Logout",
     language: "Language",
@@ -52,6 +51,10 @@ export default {
     scopeDepartment: "Same department",
     statusFilter: "Status",
     statusAll: "All statuses",
+    statusDraft: "Draft",
+    statusInApproval: "In approval",
+    statusApproved: "Approved",
+    statusRejected: "Rejected",
     refresh: "Refresh",
     colId: "ID",
     colTitle: "Title",
@@ -97,6 +100,7 @@ export default {
     versionLabel: "v{no} (#{id})",
   },
   editor: {
+    actions: "Actions",
     save: "Save",
     exportDocx: "Export DOCX",
     exportPdf: "Export PDF",
@@ -162,7 +166,6 @@ export default {
     roleComment: "Comment",
     sharingSaved: "Access rules saved",
   },
-<<<<<<< HEAD
   personal: {
     title: "Personal Information",
     department: "Department",
@@ -173,17 +176,14 @@ export default {
     createdDocs: "Created docs",
     collaboratedDocs: "Collaborated docs",
     approvedDocs: "Approved docs",
-=======
+  },
   dashboard: {
-    title: "Data Dashboard",
-    subtitle: "Overview of your document management system statistics.",
+    title: "Dashboard",
     totalDocs: "Total Documents",
-    drafts: "Drafts",
-    inApproval: "In Approval",
-    totalUsers: "Total Users",
-    statusDistribution: "Document Status Distribution",
+    myDocs: "My Documents",
+    pendingApprovals: "Pending Approvals",
+    recentActivity: "Recent Activity",
+    statusDistribution: "Status Distribution",
     activityTrend: "Activity Trend (Last 7 Days)",
->>>>>>> d73d461 (Henry's v1)
   },
 };
-

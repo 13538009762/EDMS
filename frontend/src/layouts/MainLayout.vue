@@ -25,20 +25,15 @@
       </el-menu>
       <div class="spacer" />
       <LocaleSwitcher />
-<<<<<<< HEAD
-      <el-button v-if="auth.user" type="primary" link @click="router.push({ name: 'personal' })">{{ auth.user.display_name }}</el-button>
-      <el-button type="primary" link @click="onLogout">{{ t("nav.logout") }}</el-button>
-=======
       <div v-if="auth.user" class="user-profile">
         <el-avatar size="small" :style="{ backgroundColor: 'var(--el-color-primary)' }">
           {{ auth.user.display_name.charAt(0).toUpperCase() }}
         </el-avatar>
-        <span class="user">{{ auth.user.display_name }}</span>
+         <el-button v-if="auth.user" type="primary" link @click="router.push({ name: 'personal' })">{{ auth.user.display_name }}</el-button>
       </div>
       <el-button type="primary" link @click="onLogout">
         <el-icon><SwitchButton /></el-icon>
       </el-button>
->>>>>>> d73d461 (Henry's v1)
     </el-header>
     <el-main class="main">
       <router-view />

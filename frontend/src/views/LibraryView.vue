@@ -7,6 +7,7 @@
         clearable
         style="width: 200px; margin-left: 12px"
         :placeholder="t('library.scopePlaceholder')"
+        @change="load"
       >
         <el-option :label="t('library.scopeAll')" value="" />
         <el-option :label="t('library.scopeMine')" value="mine" />
@@ -18,12 +19,13 @@
         clearable
         style="width: 180px; margin-left: 12px"
         :placeholder="t('library.statusFilter')"
+        @change="load"
       >
         <el-option :label="t('library.statusAll')" value="" />
-        <el-option label="draft" value="draft" />
-        <el-option label="in_approval" value="in_approval" />
-        <el-option label="approved" value="approved" />
-        <el-option label="rejected" value="rejected" />
+        <el-option :label="t('library.statusDraft')" value="draft" />
+        <el-option :label="t('library.statusInApproval')" value="in_approval" />
+        <el-option :label="t('library.statusApproved')" value="approved" />
+        <el-option :label="t('library.statusRejected')" value="rejected" />
       </el-select>
       <el-button @click="load">{{ t("library.refresh") }}</el-button>
     </div>
@@ -86,7 +88,7 @@ const router = useRouter();
 const { t } = useI18n();
 const items = ref<DocRow[]>([]);
 const loading = ref(false);
-const scope = ref("mine");
+const scope = ref("");
 const statusFilter = ref("");
 const shareOpen = ref(false);
 const shareDocId = ref<number | null>(null);

@@ -374,8 +374,14 @@ const userColor = `#${Math.floor(Math.random() * 0xffffff)
   .padStart(6, "0")}`;
 
 let collabDisconnect: (() => void) | null = null;
+const staticCollabs = ref<Array<{ name: string; color: string }>>([]);
 
 function refreshCollabList() {
+  // 如果是已批准状态，使用静态协作者列表
+  if (meta.value.status === 'approved') {
+    return;
+  }
+  // 否则使用实时协作者列表
   const states = awareness.getStates();
   const list: Array<{ name: string; color: string }> = [];
   states.forEach((s) => {
@@ -383,6 +389,22 @@ function refreshCollabList() {
     if (u?.name) list.push({ name: u.name, color: u.color || "#888" });
   });
   collabColors.value = list;
+}
+
+async function loadStaticCollaborators() {
+  try {
+    const { data } = await api.get(`/documents/${docId.value}/collaborators`);
+    staticCollabs.value = data.items.map((item: any) => ({
+      name: item.name,
+      color: "#888",
+    }));
+    // 如果是已批准状态，使用静态列表
+    if (meta.value.status === 'approved') {
+      collabColors.value = staticCollabs.value;
+    }
+  } catch (error) {
+    console.error("Failed to load collaborators:", error);
+  }
 }
 
 const editor = useEditor({
@@ -504,12 +526,33 @@ async function loadDoc() {
     });
     awareness.off("update", refreshCollabList);
     awareness.on("update", refreshCollabList);
-    refreshCollabList();
+    
+    // 加载静态协作者列表
+    await loadStaticCollaborators();
+    
+    // 如果不是已批准状态，刷新实时协作者列表
+    if (meta.value.status !== 'approved') {
+      refreshCollabList();
+    }
+    
     await loadComments();
   } finally {
     loading.value = false;
   }
 }
+
+// 监听文档状态变化
+watch(() => meta.value.status, async (newStatus) => {
+  if (newStatus === 'approved') {
+    // 如果是已批准状态，使用静态协作者列表
+    if (staticCollabs.value.length > 0) {
+      collabColors.value = staticCollabs.value;
+    }
+  } else {
+    // 否则使用实时协作者列表
+    refreshCollabList();
+  }
+});
 
 async function saveNow() {
   if (!editor.value || !meta.value.can_edit) return;
