@@ -2,6 +2,14 @@
   <div>
     <div class="toolbar">
       <el-button type="primary" @click="createDoc">{{ t("library.newDoc") }}</el-button>
+      <el-upload
+        :show-file-list="false"
+        accept=".docx"
+        :before-upload="onImportDocx"
+        style="display: inline-block; margin-left: 12px"
+      >
+        <el-button>{{ t("library.importDocx") }}</el-button>
+      </el-upload>
       <el-select
         v-model="scope"
         clearable
@@ -72,6 +80,8 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import api from "@/api/client";
 import { ElMessage } from "element-plus";
+import mammoth from "mammoth";
+import type { UploadRawFile } from "element-plus";
 import DocumentShareDialog from "@/components/DocumentShareDialog.vue";
 
 interface DocRow {
@@ -121,6 +131,47 @@ function open(id: number) {
 function openShare(id: number) {
   shareDocId.value = id;
   shareOpen.value = true;
+}
+
+async function onImportDocx(file: UploadRawFile) {
+  try {
+    // Create a new document
+    const { data: docData } = await api.post("/documents", { title: file.name.replace(/\.docx$/, "") });
+    const docId = docData.id;
+    
+    // Convert DOCX to raw text (without HTML tags)
+    const ab = await file.arrayBuffer();
+    const { value: rawText } = await mammoth.extractRawText({ arrayBuffer: ab });
+    
+    // Convert raw text to TipTap JSON structure
+    // Split by newlines to create paragraphs
+    const lines = rawText.split('\n').filter(line => line.trim().length > 0);
+    const content = {
+      type: "doc",
+      content: lines.length > 0 ? lines.map(line => ({
+        type: "paragraph",
+        attrs: { textAlign: "left" },
+        content: line.trim() ? [{ type: "text", text: line.trim() }] : [],
+      })) : [{
+        type: "paragraph",
+        attrs: { textAlign: "left" },
+        content: [],
+      }],
+    };
+    
+    // Save the content to the new document using the correct API endpoint
+    await api.put(`/documents/${docId}/content`, {
+      content_json: JSON.stringify(content),
+    });
+    
+    ElMessage.success(t("library.importDocxSuccess"));
+    // Reload the document list
+    await load();
+  } catch (error) {
+    console.error("Import DOCX error:", error);
+    ElMessage.error(t("library.importDocxFailed"));
+  }
+  return false;
 }
 
 onMounted(load);

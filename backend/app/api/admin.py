@@ -1,4 +1,4 @@
-"""Public admin endpoints for bootstrap (master data import without prior login)."""
+"""Admin endpoints for master data import (requires manager authentication)."""
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import verify_jwt_in_request
 from flask_jwt_extended.exceptions import JWTExtendedException
@@ -11,14 +11,6 @@ from app.utils.auth import current_user
 bp = Blueprint("admin", __name__)
 
 
-def _admin_token_ok() -> bool:
-    expected = (current_app.config.get("ADMIN_IMPORT_TOKEN") or "").strip()
-    if not expected:
-        return True
-    got = (request.headers.get("X-Admin-Token") or request.form.get("admin_token") or "").strip()
-    return got == expected
-
-
 def _has_users() -> bool:
     return db.session.query(User.id).first() is not None
 
@@ -29,9 +21,6 @@ def admin_status():
     return jsonify(
         {
             "has_users": _has_users(),
-            "admin_token_required": bool(
-                (current_app.config.get("ADMIN_IMPORT_TOKEN") or "").strip()
-            ),
         }
     )
 
@@ -40,27 +29,21 @@ def admin_status():
 def admin_import_master_data():
     """
     Import XLSX (clears documents and master data).
-
-    - If ADMIN_IMPORT_TOKEN is set: only the token (header or form) is required.
-    - If it is not set and the DB has no users: anonymous bootstrap import is allowed.
-    - If it is not set and users already exist: a valid JWT is required.
+    Requires a valid JWT token (user must be logged in).
     """
-    if not _admin_token_ok():
-        return jsonify({"error": "Invalid or missing admin token"}), 403
-
-    expected = (current_app.config.get("ADMIN_IMPORT_TOKEN") or "").strip()
-    if not expected and _has_users():
-        try:
-            verify_jwt_in_request(optional=False)
-        except JWTExtendedException:
-            return jsonify(
-                {
-                    "error": "Login required: import would wipe existing data. "
-                    "Sign in or set ADMIN_IMPORT_TOKEN and pass X-Admin-Token."
-                }
-            ), 401
-        if not current_user():
-            return jsonify({"error": "Unauthorized"}), 401
+    # Always require valid JWT token
+    try:
+        verify_jwt_in_request(optional=False)
+    except JWTExtendedException:
+        return jsonify(
+            {
+                "error": "Login required: please sign in to import data."
+            }
+        ), 401
+    
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
 
     if "file" not in request.files:
         return jsonify({"error": "file required"}), 400

@@ -4,7 +4,7 @@ import api from "@/api/client";
 
 export const useAuthStore = defineStore("auth", () => {
   const token = ref<string | null>(localStorage.getItem("edms_token"));
-  const user = ref<{ id: number; login_name: string; display_name: string } | null>(
+  const user = ref<{ id: number; login_name: string; display_name: string; is_manager?: boolean } | null>(
     null,
   );
 

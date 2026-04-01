@@ -123,12 +123,12 @@ const statusColorMap: Record<string, string> = {
   rejected: "#F56C6C",
 };
 
-const statusLabelMap: Record<string, string> = {
-  draft: "Draft",
-  in_approval: "In Approval",
-  approved: "Approved",
-  rejected: "Rejected",
-};
+const statusLabelMap = computed(() => ({
+  draft: t('dashboard.statusDraft'),
+  in_approval: t('dashboard.statusInApproval'),
+  approved: t('dashboard.statusApproved'),
+  rejected: t('dashboard.statusRejected'),
+}));
 
 const pieOption = computed(() => {
   return {
@@ -136,7 +136,7 @@ const pieOption = computed(() => {
     legend: { top: "5%", left: "center" },
     series: [
       {
-        name: "Documents",
+        name: t('dashboard.documents'),
         type: "pie",
         radius: ["40%", "70%"],
         avoidLabelOverlap: false,
@@ -156,7 +156,7 @@ const pieOption = computed(() => {
         labelLine: { show: false },
         data: statusData.value.map((s) => ({
           value: s.count,
-          name: statusLabelMap[s.status] || s.status,
+          name: (statusLabelMap.value as any)[s.status] || s.status,
           itemStyle: { color: statusColorMap[s.status] || "#ccc" },
         })),
       },
@@ -178,7 +178,7 @@ const lineOption = computed(() => {
     yAxis: { type: "value" },
     series: [
       {
-        name: "Updated Docs",
+        name: t('dashboard.updatedDocs'),
         type: "line",
         areaStyle: { color: "rgba(64, 158, 255, 0.2)" },
         itemStyle: { color: "#409eff" },

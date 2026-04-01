@@ -1,8 +1,5 @@
 <template>
   <div class="personal">
-    <div class="top">
-      <LocaleSwitcher />
-    </div>
     <el-card class="card">
       <template #header>
         <span>{{ t("personal.title") }}</span>
@@ -14,10 +11,12 @@
         <div class="info">
           <h2>{{ user?.last_name }} {{ user?.first_name }}</h2>
           <div class="detail">{{ t("personal.department") }}: {{ user?.department_name }}</div>
-          <div class="detail">{{ t("personal.position") }}: {{ user?.position_short }}</div>
+          <div class="detail">{{ t("personal.position") }}: {{ user?.position_full_name || user?.position_short }}</div>
           <div class="detail">{{ t("personal.login") }}: {{ user?.login_name }}</div>
           <div class="detail">{{ t("personal.employeeNo") }}: {{ user?.employee_no }}</div>
-        </div>
+          <div class="detail" v-if="user?.gender">{{ t("personal.gender") }}: {{ user.gender === 'Male' ? t("personal.male") : t("personal.female") }}</div>
+          <div class="detail" v-if="user?.birth_date">{{ t("personal.birthDate") }}: {{ user.birth_date }} ({{ t("personal.age") }}: {{ user.age }})</div>
+          </div>
       </div>
       <div class="stats">
         <h3>{{ t("personal.stats") }}</h3>
@@ -60,6 +59,11 @@ interface UserInfo {
   employee_no: string;
   department_name: string;
   position_short: string;
+  position_full_name?: string;
+  birth_date?: string;
+  gender?: string;
+  age?: number;
+  is_manager?: boolean;
 }
 
 interface Stats {

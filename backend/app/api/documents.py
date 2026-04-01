@@ -95,45 +95,15 @@ def list_documents():
             )
         ).filter(Document.owner_id != user.id)
     elif scope == "department":
-        # 只看同部门的文档
+        # 只看同部门的文档（只看本部门用户创建的文档，不包括协作文档）
         if user.department_id:
-            # 获取同部门的所有用户ID
+            # 获取同部门的所有用户 ID
             dept_users = select(User.id).where(User.department_id == user.department_id)
-            # 查找这些用户创建的文档，加上所有已批准的文档
-            perm_ids = select(DocumentPermission.document_id).where(
-                DocumentPermission.user_id == user.id
-            )
-            flow_ids = (
-                select(ApprovalFlow.document_id)
-                .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
-                .where(ApprovalParticipant.user_id == user.id)
-            )
-            q = q.filter(
-                or_(
-                    Document.owner_id.in_(dept_users),
-                    Document.status == "approved",
-                    Document.id.in_(perm_ids),
-                    Document.id.in_(flow_ids),
-                )
-            )
+            # 只显示这些用户创建的文档（不包括协作文档）
+            q = q.filter(Document.owner_id.in_(dept_users))
         else:
-            # 如果用户没有部门，只显示自己的文档和已批准的文档
-            perm_ids = select(DocumentPermission.document_id).where(
-                DocumentPermission.user_id == user.id
-            )
-            flow_ids = (
-                select(ApprovalFlow.document_id)
-                .join(ApprovalParticipant, ApprovalParticipant.flow_id == ApprovalFlow.id)
-                .where(ApprovalParticipant.user_id == user.id)
-            )
-            q = q.filter(
-                or_(
-                    Document.owner_id == user.id,
-                    Document.status == "approved",
-                    Document.id.in_(perm_ids),
-                    Document.id.in_(flow_ids),
-                )
-            )
+            # 如果用户没有部门，不显示任何文档
+            q = q.filter(Document.id == -1)  # 空结果集
     elif scope == "all":
         # 查看全部文档（自己的+其他人的最终版本）
         perm_ids = select(DocumentPermission.document_id).where(

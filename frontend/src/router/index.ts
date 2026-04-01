@@ -12,7 +12,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: "", name: "library", component: () => import("@/views/LibraryView.vue") },
-        { path: "import", name: "import", component: () => import("@/views/ImportView.vue") },
+        { path: "import", name: "import", component: () => import("@/views/ImportView.vue"), meta: { requiresManager: true } },
         { path: "inbox", name: "inbox", component: () => import("@/views/InboxView.vue") },
         { path: "dashboard", name: "dashboard", component: () => import("@/views/DashboardView.vue") },
         {
@@ -38,6 +38,11 @@ router.beforeEach((to, _from, next) => {
     return;
   }
   if (to.name === "login" && auth.token) {
+    next({ name: "library" });
+    return;
+  }
+  // 检查是否需要 manager 权限
+  if (to.meta.requiresManager && !auth.user?.is_manager) {
     next({ name: "library" });
     return;
   }

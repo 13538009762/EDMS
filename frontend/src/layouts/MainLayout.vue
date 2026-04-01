@@ -18,7 +18,7 @@
           <el-icon><Bell /></el-icon>
           <span>{{ t("nav.inbox", "Approval Inbox") }}</span>
         </el-menu-item>
-        <el-menu-item index="/import">
+        <el-menu-item v-if="auth.user?.is_manager" index="/import">
           <el-icon><Setting /></el-icon>
           <span>{{ t("nav.masterData", "Master Data") }}</span>
         </el-menu-item>

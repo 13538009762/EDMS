@@ -17,18 +17,6 @@
         class="alert"
       />
       <el-form label-position="top" class="form">
-        <el-form-item
-          v-if="status?.admin_token_required"
-          :label="t('admin.adminToken')"
-        >
-          <el-input
-            v-model="adminToken"
-            type="password"
-            show-password
-            :placeholder="t('admin.adminTokenPlaceholder')"
-            autocomplete="off"
-          />
-        </el-form-item>
         <el-form-item :label="t('admin.selectFile')">
           <el-upload
             :auto-upload="false"
@@ -74,8 +62,7 @@ import LocaleSwitcher from "@/components/LocaleSwitcher.vue";
 const { t } = useI18n();
 const router = useRouter();
 
-const status = ref<{ has_users: boolean; admin_token_required: boolean } | null>(null);
-const adminToken = ref("");
+const status = ref<{ has_users: boolean } | null>(null);
 const file = ref<File | null>(null);
 const loading = ref(false);
 const resultJson = ref("");
@@ -87,7 +74,6 @@ function authHeaders(): Record<string, string> {
   const h: Record<string, string> = {};
   const tok = localStorage.getItem("edms_token");
   if (tok) h.Authorization = `Bearer ${tok}`;
-  if (adminToken.value.trim()) h["X-Admin-Token"] = adminToken.value.trim();
   return h;
 }
 
@@ -107,7 +93,6 @@ async function doImport() {
   sampleLogins.value = [];
   const fd = new FormData();
   fd.append("file", file.value);
-  if (adminToken.value.trim()) fd.append("admin_token", adminToken.value.trim());
   try {
     const { data } = await axios.post(`${base}/admin/master-data/import`, fd, {
       headers: authHeaders(),
@@ -139,7 +124,7 @@ onMounted(async () => {
   try {
     await loadStatus();
   } catch {
-    status.value = { has_users: true, admin_token_required: false };
+    status.value = { has_users: true };
   }
 });
 </script>

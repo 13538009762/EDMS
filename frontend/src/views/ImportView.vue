@@ -4,11 +4,6 @@
     <p class="hint">
       {{ t("import.hint") }}
     </p>
-    <el-input
-      v-model="adminToken"
-      :placeholder="t('import.adminToken')"
-      style="max-width: 480px; margin-bottom: 12px"
-    />
     <el-upload
       :auto-upload="false"
       :on-change="onFile"
@@ -35,7 +30,7 @@ import { ref } from "vue";
 import type { UploadFile } from "element-plus";
 import { useI18n } from "vue-i18n";
 import api from "@/api/client";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 
 const { t } = useI18n();
 const file = ref<File | null>(null);
@@ -49,6 +44,23 @@ function onFile(f: UploadFile) {
 
 async function upload() {
   if (!file.value) return;
+  
+  // Show confirmation warning before import
+  try {
+    await ElMessageBox.confirm(
+      t('import.warning'),
+      t('import.confirmTitle'),
+      {
+        confirmButtonText: t('import.confirmImport'),
+        cancelButtonText: t('inbox.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    // User cancelled
+    return;
+  }
+  
   loading.value = true;
   result.value = null;
   const fd = new FormData();

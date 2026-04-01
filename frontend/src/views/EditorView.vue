@@ -30,16 +30,6 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        
-        <el-upload
-          v-if="meta.can_edit"
-          :show-file-list="false"
-          accept=".docx"
-          :before-upload="onImportDocx"
-          style="display: inline-block; margin-right: 8px"
-        >
-          <el-button>{{ t("editor.importDocx") }}</el-button>
-        </el-upload>
       </div>
     </div>
 
