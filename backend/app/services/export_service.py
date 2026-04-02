@@ -214,21 +214,18 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
     # Default page settings
     ps = {
         "orientation": "portrait",
-        "margin": "normal",
-        "pageSize": "A4",
+        "marginTop": 40,
+        "marginBottom": 40,
+        "paperFormat": "A4",
         "showPageNumber": True
     }
     if page_settings:
         ps.update(page_settings)
 
     # Map margin names to values
-    margin_map = {
-        "normal": "2.54cm",
-        "narrow": "1.27cm",
-        "wide": "5.08cm"
-    }
-    margin_val = margin_map.get(ps.get("margin"), "2.54cm")
-    size_val = f"{ps.get('pageSize', 'A4')} {ps.get('orientation', 'portrait')}"
+    margin_top = f"{ps.get('marginTop', 40)}mm"
+    margin_bottom = f"{ps.get('marginBottom', 40)}mm"
+    size_val = f"{ps.get('paperFormat', 'A4')} {ps.get('orientation', 'portrait')}"
 
     def inline(node: dict[str, Any]) -> str:
         if node.get("type") == "text":
@@ -295,7 +292,7 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
             src = (node.get("attrs") or {}).get("src") or ""
             return f"<img src='{html_escape(src)}' style='max-width: 100%;' />"
         if t == "pageBreak":
-            return "<hr class='page-break' />"
+            return "<pdf:nextpage />"
         if t == "doc":
             return "".join(block(c) for c in node.get("content") or [])
         return "".join(block(c) for c in node.get("content") or [])
@@ -307,13 +304,16 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
     <style>
         @page {{
             size: {size_val};
-            margin: {margin_val};
+            margin-top: {margin_top};
+            margin-bottom: {margin_bottom};
+            margin-left: 25mm;
+            margin-right: 25mm;
             @frame footer {{
                 -pdf-frame-content: footer_content;
-                bottom: 1cm;
-                margin-left: {margin_val};
-                margin-right: {margin_val};
-                height: 1cm;
+                bottom: 10mm;
+                margin-left: 25mm;
+                margin-right: 25mm;
+                height: 10mm;
             }}
         }}
         body {{
@@ -341,23 +341,20 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         img {{
             max-width: 100%;
         }}
-        hr.page-break {{
-            page-break-after: always;
-            border: 0;
-            height: 0;
-            margin: 0;
-        }}
         #footer_content {{
             text-align: center;
-            color: #888;
-            font-size: 10px;
+            color: #555;
+            font-size: 11px;
+            font-family: "{font_family}", sans-serif;
         }}
     </style>
     """
     
     footer = ""
-    if ps.get("showPageNumber"):
-        footer = '<div id="footer_content">Page <pdf:pagenumber> of <pdf:pagecount></div>'
+    show_pg = ps.get("showPageNumber")
+    # Robust check for boolean or string "true"
+    if show_pg is True or str(show_pg).lower() == "true":
+        footer = f'<div id="footer_content">- <pdf:pagenumber /> -</div>'
 
     return f"""
     <!DOCTYPE html>
@@ -366,12 +363,13 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         <meta charset="utf-8">
         {style}
     </head>
-    <body>
-        {body_html}
+    <body style="font-family: {font_family};">
         {footer}
+        {body_html}
     </body>
     </html>
     """
+
 
 
 def _set_run_font(run, font_name: str = "SimHei"):
@@ -382,31 +380,70 @@ def _set_run_font(run, font_name: str = "SimHei"):
 
 def export_docx_bytes(doc_json: str, page_settings: dict = None) -> bytes:
     """从 TipTap JSON 生成 DOCX 文档，使用通用字体（SimHei）以支持中俄语"""
+    from docx.shared import Mm
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+
     data = json.loads(doc_json) if doc_json else {"type": "doc", "content": []}
     d = DocxDocument()
 
     # Apply page settings to DOCX
     if page_settings:
         section = d.sections[0]
+        
+        # 1. 设置纸张方向
         if page_settings.get("orientation") == "landscape":
             section.orientation = 1 # landscape
             new_width, new_height = section.page_height, section.page_width
             section.page_width = new_width
             section.page_height = new_height
         
-        # Simple margin mapping for docx
-        from docx.shared import Inches
-        m_val = page_settings.get("margin", "normal")
-        if m_val == "narrow":
-            section.top_margin = Inches(0.5)
-            section.bottom_margin = Inches(0.5)
-            section.left_margin = Inches(0.5)
-            section.right_margin = Inches(0.5)
-        elif m_val == "wide":
-            section.top_margin = Inches(1.5)
-            section.bottom_margin = Inches(1.5)
-            section.left_margin = Inches(1.5)
-            section.right_margin = Inches(1.5)
+        # 2. 设置上下边距 (读取前端传来的毫米数值)
+        if "marginTop" in page_settings:
+            section.top_margin = Mm(page_settings["marginTop"])
+        if "marginBottom" in page_settings:
+            section.bottom_margin = Mm(page_settings["marginBottom"])
+            
+        # 3. 设置左右边距 (前端如果没传，默认固定 25 毫米)
+        section.left_margin = Mm(25)
+        section.right_margin = Mm(25)
+
+        # 4. 强行注入 Word 底层动态页码
+        show_pg = page_settings.get("showPageNumber")
+        if show_pg is True or str(show_pg).lower() == "true":
+            def add_page_number(run):
+                # 构造 Word 底层 XML 标签用于显示自增页码 "PAGE"
+                fldChar1 = OxmlElement('w:fldChar')
+                fldChar1.set(qn('w:fldCharType'), 'begin')
+                instrText = OxmlElement('w:instrText')
+                instrText.set(qn('xml:space'), 'preserve')
+                instrText.text = "PAGE"
+                fldChar2 = OxmlElement('w:fldChar')
+                fldChar2.set(qn('w:fldCharType'), 'separate')
+                fldChar3 = OxmlElement('w:fldChar')
+                fldChar3.set(qn('w:fldCharType'), 'end')
+                run._r.append(fldChar1)
+                run._r.append(instrText)
+                run._r.append(fldChar2)
+                run._r.append(fldChar3)
+
+            # 遍历并写入到每一节(Section)的页脚中
+            for sec in d.sections:
+                footer = sec.footer
+                # 如果原有页脚段落存在则取第一个，否则新建
+                p = footer.paragraphs[0] if len(footer.paragraphs) > 0 else footer.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.clear()  # 清除垃圾空文本防冲突
+                
+                run = p.add_run()
+                # 给页码设定中文字体，防乱码
+                run.font.name = "SimHei"
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), "SimHei")
+                
+                # 写入动态页码
+                add_page_number(run)
 
     def process_marks(run, marks):
         for m in marks or []:
@@ -528,8 +565,10 @@ def export_docx_bytes(doc_json: str, page_settings: dict = None) -> bytes:
                     c_idx += colspan
 
         elif t == "pageBreak":
-            p = container.add_paragraph()
-            p.add_run().add_break(WD_BREAK.PAGE)
+            try:
+                container.add_page_break()
+            except AttributeError:
+                container.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
         elif t == "doc":
             for ch in node.get("content") or []:

@@ -259,7 +259,7 @@
           <el-slider v-model="page.marginBottom" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('editor.showPageNumber')">
-          <el-checkbox v-model="page.showPageNumber" />
+          <el-switch v-model="page.showPageNumber" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -542,8 +542,14 @@ async function loadDoc() {
     title.value = data.title;
     meta.value = data;
     if (data.page_settings_json) {
-        const ps = JSON.parse(data.page_settings_json);
-        Object.assign(page.value, ps);
+        try {
+            const ps = typeof data.page_settings_json === 'string' 
+                ? JSON.parse(data.page_settings_json) 
+                : data.page_settings_json;
+            Object.assign(page.value, ps);
+        } catch (e) {
+            console.error("解析页面设置失败:", e);
+        }
     }
     editor.value?.setEditable(data.can_edit);
     if (data.yjs_state_b64) Y.applyUpdate(ydoc, Uint8Array.from(atob(data.yjs_state_b64), (c) => c.charCodeAt(0)));
