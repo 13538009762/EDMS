@@ -94,7 +94,6 @@ if not exist "%DATA_DIR%" (
     echo Creating data directory in bin/ directory...
     mkdir "%DATA_DIR%"
     mkdir "%DATA_DIR%\backend"
-    mkdir "%DATA_DIR%\database"
     echo [OK] Created data directory
     echo.
 ) else (
@@ -159,7 +158,7 @@ echo   - .env (environment configuration)
 echo   - data/ (persistent data)
 echo.
 echo Next steps:
-echo   1. Run bin\Windows|Linux\start.bat|sh to start the services
+echo   1. Run bin\Windows\start.bat to start the services
 echo   2. Access the application at http://localhost
 echo.
 echo To rebuild:

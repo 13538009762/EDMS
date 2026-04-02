@@ -69,7 +69,6 @@ fi
 if [ ! -d "$DATA_DIR" ]; then
     echo "Creating data directory in bin/ directory..."
     mkdir -p "$DATA_DIR/backend"
-    mkdir -p "$DATA_DIR/database"
     echo "[OK] Created data directory"
     echo ""
 else
