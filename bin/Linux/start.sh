@@ -159,7 +159,7 @@ echo ""
 
 # Show container status
 echo "Current container status:"
-$COMPOSE_CMD -f "$COMPOSE_FILE" ps
+docker ps --format "{{.Names}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Ports}}" | grep -E "edms-backend|edms-frontend|edms-db-placeholder"
 
 echo ""
 read -p "Press Enter to continue..."
