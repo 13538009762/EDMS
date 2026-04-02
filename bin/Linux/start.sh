@@ -122,13 +122,13 @@ else
     echo ""
     
     # Start containers
-    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build 2>&1 | grep -E "Creating|Starting|Started|Created" || true
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build 2>&1 | grep -E "Creating|Starting|Started|Created|network" || true
     
     # Wait for containers to start
     sleep 5
     
     # Verify containers are actually running
-    if $COMPOSE_CMD -f "$COMPOSE_FILE" ps -q 2>/dev/null | grep -q .; then
+    if docker ps --format "{{.Names}}" | grep -E "edms-backend|edms-frontend|edms-db-placeholder" | wc -l | grep -q "3"; then
         echo ""
         echo -e "${GREEN}[OK]${NC} Containers started successfully"
     else
