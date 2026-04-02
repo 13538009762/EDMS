@@ -6,10 +6,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-ENV_FILE="$SCRIPT_DIR/.env"
-DATA_DIR="$SCRIPT_DIR/data"
-IMAGES_DIR="$SCRIPT_DIR/images"
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
+ENV_FILE="$SCRIPT_DIR/../.env"
+DATA_DIR="$SCRIPT_DIR/../data"
+IMAGES_DIR="$SCRIPT_DIR/../images"
 
 # Colors for output
 GREEN='\033[0;32m'
