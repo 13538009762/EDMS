@@ -1,0 +1,56 @@
+# Frontend .dockerignore
+
+# Dependencies
+node_modules/
+
+# Production
+build/
+dist/
+
+# Development
+.dev/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Testing
+coverage/
+.nyc_output/
+
+# Documentation
+docs/
+*.md
+
+# Backend (not needed in frontend)
+../backend/
+
+# OS
+.DS_Store
+Thumbs.db

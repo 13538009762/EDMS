@@ -1,3 +1,5 @@
+[简体中文](./README.zh-CN.md) | English
+
 # EDMS — Electronic Document Management System
 
 Vue 3 + Element Plus frontend, Flask backend. Master data import, document editing, collaboration, comments, and approval workflows.
@@ -76,6 +78,22 @@ Once users exist and `ADMIN_IMPORT_TOKEN` is **not** set, importing again requir
 - Users can switch to **中文** (`zh-CN`) via **Language** in the header (or on the login page).
 - Choice is stored in `localStorage` under `edms_locale`.
 - Element Plus component locale follows the same setting.
+
+## Docker Deployment (Recommended)
+
+For production deployment, using Docker is the easiest way:
+
+```bash
+# Windows
+docker\build.bat
+bin\start.bat
+
+# Linux/macOS
+./docker/build.sh
+./bin/start.sh
+```
+
+See [docker/README.md](docker/README.md) for detailed instructions.
 
 ## Documentation
 
