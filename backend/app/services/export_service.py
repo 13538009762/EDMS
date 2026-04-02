@@ -11,7 +11,7 @@ from io import BytesIO
 from typing import Any
 
 from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
 from flask import current_app
@@ -52,9 +52,10 @@ def get_cjk_font_family() -> str:
     cjk_candidates = [
         os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
         os.path.join(font_dir, "simhei.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\Windows"), "Fonts", "arialuni.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\Windows"), "Fonts", "simhei.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "simhei.ttf"),
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
     cjk_path = None
     for path in cjk_candidates:
@@ -293,6 +294,8 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         if t == "image":
             src = (node.get("attrs") or {}).get("src") or ""
             return f"<img src='{html_escape(src)}' style='max-width: 100%;' />"
+        if t == "pageBreak":
+            return "<hr class='page-break' />"
         if t == "doc":
             return "".join(block(c) for c in node.get("content") or [])
         return "".join(block(c) for c in node.get("content") or [])
@@ -338,6 +341,12 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         img {{
             max-width: 100%;
         }}
+        hr.page-break {{
+            page-break-after: always;
+            border: 0;
+            height: 0;
+            margin: 0;
+        }}
         #footer_content {{
             text-align: center;
             color: #888;
@@ -346,12 +355,9 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
     </style>
     """
     
-    # Footer and Page Numbering Logic
-    footer_html = ""
-    show_pg = ps.get("showPageNumber")
-    # Robust check for boolean or string "true" (defaulting to True if missing)
-    if show_pg is True or str(show_pg).lower() == "true" or show_pg is None:
-        footer_html = f'<div id="footer_content" style="font-family: {font_family}; text-align: center;">- <pdf:pagenumber /> -</div>'
+    footer = ""
+    if ps.get("showPageNumber"):
+        footer = '<div id="footer_content">Page <pdf:pagenumber> of <pdf:pagecount></div>'
 
     return f"""
     <!DOCTYPE html>
@@ -360,9 +366,9 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         <meta charset="utf-8">
         {style}
     </head>
-    <body style="font-family: {font_family};">
+    <body>
         {body_html}
-        {footer_html}
+        {footer}
     </body>
     </html>
     """
@@ -521,6 +527,10 @@ def export_docx_bytes(doc_json: str, page_settings: dict = None) -> bytes:
 
                     c_idx += colspan
 
+        elif t == "pageBreak":
+            p = container.add_paragraph()
+            p.add_run().add_break(WD_BREAK.PAGE)
+
         elif t == "doc":
             for ch in node.get("content") or []:
                 add_block_from_node(ch, container)
@@ -543,13 +553,10 @@ def _fetch_resources(uri, rel):
 
 
 def export_pdf_bytes(doc_json: str, page_settings: dict = None) -> bytes:
-    """从 TipTap JSON 生成 PDF 文档，使用默认字体"""
-    # 简化版PDF导出，使用xhtml2pdf的默认字体处理
-    html = tiptap_json_to_html(doc_json or "{}", font_family="Arial", page_settings=page_settings)
+    """从 TipTap JSON 生成 PDF 文档，使用已注册的通用字体"""
+    font_family = get_cjk_font_family()
+    html = tiptap_json_to_html(doc_json or "{}", font_family=font_family, page_settings=page_settings)
     out = BytesIO()
-    # 移除字体相关的CSS属性，让xhtml2pdf使用默认字体
-    html = html.replace('-pdf-font-name: "Arial";', '')
-    html = html.replace('-pdf-encoding: "Identity-H";', '')
     pisa.CreatePDF(src=html, dest=out, encoding="utf-8", link_callback=_fetch_resources)
     return out.getvalue()
 
