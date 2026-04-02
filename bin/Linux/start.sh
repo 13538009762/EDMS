@@ -122,7 +122,7 @@ else
     echo ""
     
     # Start containers
-    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Creating|Starting|Started|Created" || true
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build 2>&1 | grep -E "Creating|Starting|Started|Created" || true
     
     # Wait for containers to start
     sleep 5
