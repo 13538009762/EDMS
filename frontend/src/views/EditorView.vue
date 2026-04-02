@@ -110,6 +110,17 @@
         <el-button size="small" @click="editor.chain().focus().deleteTable().run()">{{ t("editor.toolbar.deleteTable") }}</el-button>
         <el-button size="small" @click="editor.chain().focus().toggleHeaderRow().run()">{{ t("editor.toolbar.headerRow") }}</el-button>
       </el-button-group>
+      <el-button-group class="toolbar-group" v-if="editor && editor.isActive('image')" style="margin-left: 8px;">
+        <el-button size="small" type="warning" plain @click="setImgWidth('100%')">
+          {{ t("editor.toolbar.imgSize100") }}
+        </el-button>
+        <el-button size="small" type="warning" plain @click="setImgWidth('50%')">
+          {{ t("editor.toolbar.imgSize50") }}
+        </el-button>
+        <el-button size="small" type="warning" plain @click="setImgWidth('25%')">
+          {{ t("editor.toolbar.imgSize25") }}
+        </el-button>
+      </el-button-group>
 
       <div class="toolbar-divider"></div>
       <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; margin-right:8px;">
@@ -312,6 +323,21 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import mammoth from "mammoth";
 import DocumentShareDialog from "@/components/DocumentShareDialog.vue";
 
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: element => element.getAttribute('width'),
+        renderHTML: attributes => {
+          if (!attributes.width) return {};
+          return { width: attributes.width };
+        }
+      }
+    };
+  }
+});
 const route = useRoute();
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -431,7 +457,7 @@ function refreshCollabList() {
 const editor = useEditor({
   extensions: [
     StarterKit.configure({ history: false }),
-    Underline, TextStyle, Color, FontFamily, Image, Dropcursor, Gapcursor, TableRow, TableHeader, TableCell,
+    Underline, TextStyle, Color, FontFamily, CustomImage, Dropcursor, Gapcursor, TableRow, TableHeader, TableCell,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     Collaboration.configure({ document: ydoc }),
@@ -587,14 +613,29 @@ async function importDocx() {
 
 function insertImage() {
   const input = document.createElement("input");
-  input.type = "file"; input.accept = "image/*";
+  input.type = "file"; 
+  input.accept = "image/*";
   input.onchange = async (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return;
-    const formData = new FormData(); formData.append("file", file);
+    const file = (e.target as HTMLInputElement).files?.[0]; 
+    if (!file) return;
+    
+    const formData = new FormData(); 
+    formData.append("file", file); 
+    
     try {
-      const { data } = await api.post(`/upload-image`, formData);
-      editor.value?.chain().focus().setImage({ src: data.url }).run();
-    } catch { ElMessage.error(t("common.failed", "Failed")); }
+      // 💡 修改 1：补全蓝图前缀 `/documents`
+      // 💡 修改 2：加上 multipart/form-data 请求头
+      const { data } = await api.post(`/documents/upload-image`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      });
+      // 插入图片到编辑器
+      (editor.value?.chain().focus() as any).setImage({ src: data.url }).run();
+    } catch (err: any) { 
+      console.error("上传图片报错详情:", err.response || err);
+      ElMessage.error(`图片上传失败: ${err.response?.status === 404 ? '接口不存在' : '后端断开连接'}`); 
+    }
   };
   input.click();
 }
@@ -646,7 +687,11 @@ async function addCommentOnSelection() {
     }
   } catch {}
 }
-
+function setImgWidth(width: string) {
+  if (editor.value) {
+    editor.value.chain().focus().updateAttributes('image', { width }).run();
+  }
+}
 onMounted(() => loadDoc());
 onBeforeUnmount(() => { collabDisconnect?.(); awareness.off("update", refreshCollabList); editor.value?.destroy(); });
 watch(() => route.params.id, () => loadDoc());
@@ -903,5 +948,14 @@ watch(() => route.params.id, () => loadDoc());
   background-color: #f0f2f5;
   border-bottom: 1px solid var(--el-border-color-lighter);
   align-items: center;
+}
+
+.tiptap :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.tiptap :deep(img.ProseMirror-selectednode) {
+  outline: 3px solid var(--el-color-primary);
 }
 </style>
