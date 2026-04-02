@@ -63,13 +63,14 @@ def apply_decision(
         if participant.step_order != flow.current_order:
             raise ValueError("Not your turn in sequential flow")
 
-    db.session.add(
-        ApprovalDecision(
-            participant_id=participant.id,
-            decision=decision,
-            reason=reason or "",
-        )
+    new_decision = ApprovalDecision(
+        participant_id=participant.id,
+        decision=decision,
+        reason=reason or "",
     )
+    participant.decision = new_decision
+    
+    db.session.add(new_decision)
     db.session.flush()
 
     if decision == "reject":
@@ -79,6 +80,7 @@ def apply_decision(
         return
 
     if flow.flow_type == "parallel":
+        # 现在 participant.decision 在内存里有值了，pending 计算就会完全准确
         pending = [p for p in flow.participants if not p.decision]
         if not pending:
             if all(

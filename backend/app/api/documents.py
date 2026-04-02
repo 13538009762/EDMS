@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import uuid
 from datetime import datetime
 
 from flask import Blueprint, Response, jsonify, request
@@ -20,7 +22,7 @@ from app.models import (
 )
 from app.models.workflow import ApprovalParticipant
 from app.services.approval_service import start_flow
-from app.services.diff_service import diff_html
+from app.services.diff_service import diff_html, blame_html, side_by_side_diff
 from app.services.document_access import (
     user_can_comment,
     user_can_edit_content,
@@ -214,11 +216,30 @@ def put_content(doc_id: int):
     ver = doc.current_version
     if not ver:
         return jsonify({"error": "No version"}), 400
+
+    from datetime import timedelta
+    # Create new version if user changed OR 5+ minutes passed since last version creation
+    time_passed = (datetime.utcnow() - ver.created_at) > timedelta(minutes=5)
+    if (ver.created_by_id != user.id) or time_passed:
+        new_ver = DocumentVersion(
+            document_id=doc.id,
+            version_no=ver.version_no + 1,
+            parent_version_id=ver.id,
+            created_by_id=user.id,
+            content_json=ver.content_json,
+            yjs_state=ver.yjs_state,
+        )
+        db.session.add(new_ver)
+        db.session.flush()
+        doc.current_version_id = new_ver.id
+        ver = new_ver
+
     if "content_json" in data:
         cj = data["content_json"]
         ver.content_json = json.dumps(cj) if isinstance(cj, (dict, list)) else str(cj)
     if "yjs_state_b64" in data and data["yjs_state_b64"]:
         ver.yjs_state = base64.b64decode(data["yjs_state_b64"])
+    
     doc.updated_at = datetime.utcnow()
     db.session.commit()
     return jsonify({"ok": True})
@@ -234,7 +255,8 @@ def list_versions(doc_id: int):
     if not doc or not user_can_view_document(user, doc):
         return jsonify({"error": "Not found"}), 404
     items = []
-    for v in sorted(doc.versions, key=lambda x: x.version_no):
+    # Sort by version_no desc for latest first
+    for v in sorted(doc.versions, key=lambda x: x.version_no, reverse=True):
         items.append(
             {
                 "id": v.id,
@@ -242,6 +264,7 @@ def list_versions(doc_id: int):
                 "created_at": v.created_at.isoformat() if v.created_at else None,
                 "parent_version_id": v.parent_version_id,
                 "created_by_id": v.created_by_id,
+                "created_by_name": v.created_by.login_name if v.created_by else "System",
             }
         )
     return jsonify({"items": items})
@@ -284,8 +307,48 @@ def get_diff(doc_id: int):
     b = db.session.get(DocumentVersion, v_to)
     if not a or not b or a.document_id != doc.id or b.document_id != doc.id:
         return jsonify({"error": "Invalid versions"}), 400
-    html = diff_html(a.content_json or "{}", b.content_json or "{}")
-    return jsonify({"html": html})
+    mode = request.args.get("mode", "inline")
+    if mode == "side_by_side":
+        html_data = side_by_side_diff(a.content_json or "{}", b.content_json or "{}")
+    else:
+        html_data = diff_html(a.content_json or "{}", b.content_json or "{}")
+    return jsonify({"html": html_data})
+
+
+@bp.get("/<int:doc_id>/blame")
+@jwt_required()
+def get_blame(doc_id: int):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    doc = db.session.get(Document, doc_id)
+    if not doc or not user_can_view_document(user, doc):
+        return jsonify({"error": "Not found"}), 404
+        
+    versions_data = []
+    colors = ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#38bdf8", "#818cf8", "#c084fc", "#f472b6"]
+    author_color_map = {}
+    
+    for v in sorted(doc.versions, key=lambda x: x.version_no):
+        author_name = "Unknown"
+        if v.created_by:
+            author_name = f"{v.created_by.last_name} {v.created_by.first_name}".strip() or v.created_by.login_name
+            
+        if author_name not in author_color_map:
+            author_color_map[author_name] = colors[len(author_color_map) % len(colors)]
+            
+        versions_data.append({
+            "version_no": v.version_no,
+            "content_json": v.content_json,
+            "author_name": author_name,
+            "author_color": author_color_map[author_name],
+            "created_at": v.created_at.strftime("%Y-%m-%d %H:%M:%S") if v.created_at else ""
+        })
+        
+    html_out = blame_html(versions_data)
+    legend = [{"name": k, "color": v} for k, v in author_color_map.items()]
+    
+    return jsonify({"html": html_out, "legend": legend})
 
 
 @bp.post("/<int:doc_id>/permissions")
@@ -411,7 +474,8 @@ def export_docx(doc_id: int):
     if not doc or not user_can_view_document(user, doc):
         return jsonify({"error": "Not found"}), 404
     ver = doc.current_version
-    raw = export_docx_bytes(ver.content_json if ver else "{}")
+    ps = json.loads(doc.page_settings_json) if doc.page_settings_json else None
+    raw = export_docx_bytes(ver.content_json if ver else "{}", page_settings=ps)
     return Response(
         raw,
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -429,7 +493,8 @@ def export_pdf(doc_id: int):
     if not doc or not user_can_view_document(user, doc):
         return jsonify({"error": "Not found"}), 404
     ver = doc.current_version
-    raw = export_pdf_bytes(ver.content_json if ver else "{}")
+    ps = json.loads(doc.page_settings_json) if doc.page_settings_json else None
+    raw = export_pdf_bytes(ver.content_json if ver else "{}", page_settings=ps)
     return Response(
         raw,
         mimetype="application/pdf",
@@ -437,7 +502,34 @@ def export_pdf(doc_id: int):
     )
 
 
-@bp.post("/<int:doc_id>/approval")
+@bp.post("/upload-image")
+@jwt_required()
+def upload_image():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    if "file" not in request.files:
+        return jsonify({"error": "No file parameter"}), 400
+    file = request.files["file"]
+    if not file or not file.filename:
+        return jsonify({"error": "No file selected"}), 400
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+        return jsonify({"error": "Invalid image extension. Only jpg, png, gif, webp allowed."}), 400
+        
+    from flask import current_app
+    save_dir = os.path.join(current_app.root_path, "static", "images")
+    os.makedirs(save_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}{ext}"
+    
+    file.save(os.path.join(save_dir, filename))
+    url = f"/static/images/{filename}"
+    return jsonify({"url": url})
+
+
+
+@bp.post("/<int:doc_id>/approvals")
 @jwt_required()
 def start_approval(doc_id: int):
     user = current_user()
@@ -447,12 +539,17 @@ def start_approval(doc_id: int):
     if not doc or doc.owner_id != user.id:
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json(silent=True) or {}
-    flow_type = (data.get("flow_type") or "parallel").lower()
-    ids = data.get("approver_ids") or []
+    # Align with frontend fields: 'type' and 'approvers'
+    flow_type = (data.get("type") or "parallel").lower()
+    ids = data.get("approvers") or []
     if flow_type not in ("parallel", "sequential"):
         return jsonify({"error": "invalid flow_type"}), 400
     approvers = [int(x) for x in ids]
+    if doc.owner_id in approvers:
+        return jsonify({"error": "Owner cannot be an approver"}), 400
     try:
+
+
         flow = start_flow(doc, flow_type, approvers)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

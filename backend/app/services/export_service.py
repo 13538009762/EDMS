@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import urllib.request
+import logging
 from html import escape as html_escape
 from io import BytesIO
 from typing import Any
@@ -10,7 +13,135 @@ from typing import Any
 from docx import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor
+from docx.oxml.ns import qn
+from flask import current_app
 from xhtml2pdf import pisa
+
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.fonts import addMapping
+
+logger = logging.getLogger(__name__)
+_cjk_registered = False
+
+def _get_static_dir() -> str:
+    """获取项目静态文件夹路径，优先使用 Flask 的 current_app，否则用当前文件所在目录"""
+    try:
+        if current_app:
+            return os.path.join(current_app.root_path, "static")
+    except RuntimeError:
+        pass
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, "static")
+
+
+def get_cjk_font_family() -> str:
+    """
+    获取并注册支持中文、俄语等多语言的字体。
+    注册两个字体族：PDFCJK（中文/日文/韩文）和 PDFLatin（拉丁/西里尔），并返回组合字体族名称供 CSS 使用。
+    """
+    global _cjk_registered
+    if _cjk_registered:
+        return "PDFCJK, PDFLatin"
+
+    static_dir = _get_static_dir()
+    font_dir = os.path.join(static_dir, "fonts")
+    os.makedirs(font_dir, exist_ok=True)
+
+    # ---------- 中文字体 ----------
+    cjk_candidates = [
+        os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
+        os.path.join(font_dir, "simhei.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "simhei.ttf"),
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ]
+    cjk_path = None
+    for path in cjk_candidates:
+        if os.path.exists(path):
+            cjk_path = path
+            logger.info(f"找到中文字体文件: {cjk_path}")
+            break
+    if not cjk_path:
+        try:
+            noto_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
+            noto_local = os.path.join(font_dir, "NotoSansCJKsc-Regular.otf")
+            if not os.path.exists(noto_local):
+                logger.info("正在下载 Noto 中文字体，请稍候...")
+                req = urllib.request.Request(noto_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=30) as resp, open(noto_local, 'wb') as out:
+                    out.write(resp.read())
+            if os.path.exists(noto_local):
+                cjk_path = noto_local
+                logger.info("Noto 中文字体下载成功")
+        except Exception as e:
+            logger.error(f"下载 Noto 中文字体失败: {e}")
+    if not cjk_path:
+        raise RuntimeError("无法找到或下载支持中文的字体，请放置相应字体文件到 static/fonts 目录。")
+
+    # 注册中文字体族 PDFCJK
+    try:
+        pdfmetrics.registerFont(TTFont('PDFCJK', cjk_path))
+        pdfmetrics.registerFont(TTFont('PDFCJK-Bold', cjk_path))
+        pdfmetrics.registerFont(TTFont('PDFCJK-Italic', cjk_path))
+        pdfmetrics.registerFont(TTFont('PDFCJK-BoldItalic', cjk_path))
+        addMapping('PDFCJK', 0, 0, 'PDFCJK')
+        addMapping('PDFCJK', 1, 0, 'PDFCJK-Bold')
+        addMapping('PDFCJK', 0, 1, 'PDFCJK-Italic')
+        addMapping('PDFCJK', 1, 1, 'PDFCJK-BoldItalic')
+        logger.info(f"中文字体 {cjk_path} 注册成功，族名: PDFCJK")
+    except Exception as e:
+        logger.exception(f"中文字体注册失败 ({cjk_path}): {e}")
+        raise RuntimeError(f"中文字体注册失败 ({cjk_path}): {e}") from e
+
+    # ---------- 拉丁/西里尔字体 ----------
+    latin_candidates = [
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
+        os.path.join(font_dir, "NotoSans-Regular.ttf"),
+        os.path.join(font_dir, "DejaVuSans.ttf"),
+    ]
+    latin_path = None
+    for path in latin_candidates:
+        if os.path.exists(path):
+            latin_path = path
+            logger.info(f"找到拉丁/西里尔字体文件: {latin_path}")
+            break
+    if not latin_path:
+        try:
+            noto_latin_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
+            noto_latin_local = os.path.join(font_dir, "NotoSans-Regular.ttf")
+            if not os.path.exists(noto_latin_local):
+                logger.info("正在下载 Noto Sans Latin/Cyrillic 字体，请稍候...")
+                req = urllib.request.Request(noto_latin_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=30) as resp, open(noto_latin_local, 'wb') as out:
+                    out.write(resp.read())
+            if os.path.exists(noto_latin_local):
+                latin_path = noto_latin_local
+                logger.info("Noto Sans Latin/Cyrillic 字体下载成功")
+        except Exception as e:
+            logger.error(f"下载 Noto Sans Latin/Cyrillic 字体失败: {e}")
+    if not latin_path:
+        latin_path = cjk_path
+        logger.warning("未找到专用拉丁/西里尔字体，使用中文字体作为回退，可能导致部分字符显示异常。")
+
+    # 注册拉丁/西里尔字体族 PDFLatin
+    try:
+        pdfmetrics.registerFont(TTFont('PDFLatin', latin_path))
+        pdfmetrics.registerFont(TTFont('PDFLatin-Bold', latin_path))
+        pdfmetrics.registerFont(TTFont('PDFLatin-Italic', latin_path))
+        pdfmetrics.registerFont(TTFont('PDFLatin-BoldItalic', latin_path))
+        addMapping('PDFLatin', 0, 0, 'PDFLatin')
+        addMapping('PDFLatin', 1, 0, 'PDFLatin-Bold')
+        addMapping('PDFLatin', 0, 1, 'PDFLatin-Italic')
+        addMapping('PDFLatin', 1, 1, 'PDFLatin-BoldItalic')
+        logger.info(f"拉丁/西里尔字体 {latin_path} 注册成功，族名: PDFLatin")
+    except Exception as e:
+        logger.exception(f"拉丁/西里尔字体注册失败 ({latin_path}): {e}")
+        raise RuntimeError(f"拉丁/西里尔字体注册失败 ({latin_path}): {e}") from e
+
+    _cjk_registered = True
+    return "PDFCJK, PDFLatin"
 
 
 def _walk_text(node: dict[str, Any], parts: list[str]) -> None:
@@ -52,7 +183,7 @@ def tiptap_json_to_plain(doc_json: str) -> str:
                 _walk_text(ch, line)
             lvl = (node.get("attrs") or {}).get("level") or 1
             parts.append(f"{'#' * int(lvl)} " + "".join(line))
-        elif t == "bulletList" or t == "orderedList":
+        elif t in ("bulletList", "orderedList"):
             for item in node.get("content") or []:
                 if item.get("type") == "listItem":
                     sub: list[str] = []
@@ -66,17 +197,38 @@ def tiptap_json_to_plain(doc_json: str) -> str:
                 block(ch)
         else:
             for ch in node.get("content") or []:
-                block(ch)
+                if isinstance(ch, dict):
+                    block(ch)
 
     block(root)
     return "\n".join(parts)
 
 
-def tiptap_json_to_html(doc_json: str) -> str:
+def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_settings: dict = None) -> str:
+    """将 TipTap JSON 转换为 HTML，使用已注册的字体，并设置 xhtml2pdf 专有属性"""
     try:
         root = json.loads(doc_json)
     except json.JSONDecodeError:
         return "<p></p>"
+
+    # Default page settings
+    ps = {
+        "orientation": "portrait",
+        "margin": "normal",
+        "pageSize": "A4",
+        "showPageNumber": True
+    }
+    if page_settings:
+        ps.update(page_settings)
+
+    # Map margin names to values
+    margin_map = {
+        "normal": "2.54cm",
+        "narrow": "1.27cm",
+        "wide": "5.08cm"
+    }
+    margin_val = margin_map.get(ps.get("margin"), "2.54cm")
+    size_val = f"{ps.get('pageSize', 'A4')} {ps.get('orientation', 'portrait')}"
 
     def inline(node: dict[str, Any]) -> str:
         if node.get("type") == "text":
@@ -127,7 +279,7 @@ def tiptap_json_to_html(doc_json: str) -> str:
             return f"<li>{inner}</li>"
         if t == "table":
             inner = "".join(block(c) for c in node.get("content") or [])
-            return f"<table>{inner}</table>"
+            return f"<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse; width: 100%;'>{inner}</table>"
         if t == "tableRow":
             inner = "".join(block(c) for c in node.get("content") or [])
             return f"<tr>{inner}</tr>"
@@ -141,87 +293,166 @@ def tiptap_json_to_html(doc_json: str) -> str:
             return f"<{tag}{attrs_str}>{inner}</{tag}>"
         if t == "image":
             src = (node.get("attrs") or {}).get("src") or ""
-            return f"<img src='{html_escape(src)}' />"
+            return f"<img src='{html_escape(src)}' style='max-width: 100%;' />"
         if t == "doc":
             return "".join(block(c) for c in node.get("content") or [])
         return "".join(block(c) for c in node.get("content") or [])
 
-    body = block(root)
-    # xhtml2pdf requires a font reference to render CJK characters
-    # Use simple font-family without @font-face to avoid permission issues
-    head = """
-    <head>
-    <meta charset='utf-8'>
+    body_html = block(root)
+
+    # CSS for xhtml2pdf Page Numbering and Settings
+    style = f"""
     <style>
-      body {
-        font-family: "Microsoft YaHei", "SimSun", sans-serif;
-        font-size: 14px;
-        line-height: 1.5;
-        color: #333;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-        margin-bottom: 10px;
-      }
-      th, td {
-        border: 1px solid #cccccc;
-        padding: 5px;
-      }
-      th {
-        background-color: #f5f5f5;
-      }
-      img {
-        max-width: 100%;
-      }
+        @page {{
+            size: {size_val};
+            margin: {margin_val};
+            @frame footer {{
+                -pdf-frame-content: footer_content;
+                bottom: 1cm;
+                margin-left: {margin_val};
+                margin-right: {margin_val};
+                height: 1cm;
+            }}
+        }}
+        body {{
+            font-family: "{font_family}", sans-serif;
+            -pdf-font-name: "{font_family}";
+            -pdf-encoding: "Identity-H";
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }}
+        th, td {{
+            border: 1px solid black;
+            padding: 6px;
+            word-wrap: break-word;
+            font-family: "{font_family}", sans-serif;
+        }}
+        img {{
+            max-width: 100%;
+        }}
+        #footer_content {{
+            text-align: center;
+            color: #888;
+            font-size: 10px;
+        }}
     </style>
-    </head>
     """
-    return f"<!DOCTYPE html><html>{head}<body>{body}</body></html>"
+    
+    footer = ""
+    if ps.get("showPageNumber"):
+        footer = '<div id="footer_content">Page <pdf:pagenumber> of <pdf:pagecount></div>'
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        {style}
+    </head>
+    <body>
+        {body_html}
+        {footer}
+    </body>
+    </html>
+    """
 
 
-def export_docx_bytes(doc_json: str) -> bytes:
-    """Build a simple DOCX from TipTap JSON."""
+def _set_run_font(run, font_name: str = "SimHei"):
+    """为 docx 的 run 设置字体名称，确保支持中文和俄语"""
+    run.font.name = font_name
+    run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+
+
+def export_docx_bytes(doc_json: str, page_settings: dict = None) -> bytes:
+    """从 TipTap JSON 生成 DOCX 文档，使用通用字体（SimHei）以支持中俄语"""
     data = json.loads(doc_json) if doc_json else {"type": "doc", "content": []}
     d = DocxDocument()
 
-    def add_paragraph_from_node(node: dict[str, Any]) -> None:
+    # Apply page settings to DOCX
+    if page_settings:
+        section = d.sections[0]
+        if page_settings.get("orientation") == "landscape":
+            section.orientation = 1 # landscape
+            new_width, new_height = section.page_height, section.page_width
+            section.page_width = new_width
+            section.page_height = new_height
+        
+        # Simple margin mapping for docx
+        from docx.shared import Inches
+        m_val = page_settings.get("margin", "normal")
+        if m_val == "narrow":
+            section.top_margin = Inches(0.5)
+            section.bottom_margin = Inches(0.5)
+            section.left_margin = Inches(0.5)
+            section.right_margin = Inches(0.5)
+        elif m_val == "wide":
+            section.top_margin = Inches(1.5)
+            section.bottom_margin = Inches(1.5)
+            section.left_margin = Inches(1.5)
+            section.right_margin = Inches(1.5)
+
+    def process_marks(run, marks):
+        for m in marks or []:
+            mt = m.get("type")
+            if mt == "bold":
+                run.bold = True
+            elif mt == "italic":
+                run.italic = True
+            elif mt == "underline":
+                run.underline = True
+            elif mt == "strike":
+                run.font.strike = True
+            elif mt == "textStyle":
+                col = (m.get("attrs") or {}).get("color")
+                if col and col.startswith("#") and len(col) >= 7:
+                    try:
+                        r = int(col[1:3], 16)
+                        g = int(col[3:5], 16)
+                        b = int(col[5:7], 16)
+                        run.font.color.rgb = RGBColor(r, g, b)
+                    except ValueError:
+                        pass
+
+    def add_block_from_node(node: dict[str, Any], container) -> None:
         t = node.get("type")
         if t == "paragraph":
-            p = d.add_paragraph()
+            p = container.add_paragraph()
             for ch in node.get("content") or []:
-                if ch.get("type") != "text":
-                    continue
-                run = p.add_run(ch.get("text") or "")
-                for m in ch.get("marks") or []:
-                    mt = m.get("type")
-                    if mt == "bold":
-                        run.bold = True
-                    elif mt == "italic":
-                        run.italic = True
-                    elif mt == "underline":
-                        run.underline = True
-                    elif mt == "strike":
-                        run.font.strike = True
-                    elif mt == "textStyle":
-                        col = (m.get("attrs") or {}).get("color")
-                        if col and col.startswith("#") and len(col) >= 7:
-                            r = int(col[1:3], 16)
-                            g = int(col[3:5], 16)
-                            b = int(col[5:7], 16)
-                            run.font.color.rgb = RGBColor(r, g, b)
+                if ch.get("type") == "text":
+                    run = p.add_run(ch.get("text") or "")
+                    process_marks(run, ch.get("marks"))
+                    _set_run_font(run, "SimHei")
             ta = (node.get("attrs") or {}).get("textAlign")
             if ta == "center":
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             elif ta == "right":
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
         elif t == "heading":
             lvl = int((node.get("attrs") or {}).get("level") or 1)
-            p = d.add_heading(level=min(lvl, 3))
+            try:
+                p = container.add_heading(level=min(lvl, 3))
+            except AttributeError:
+                p = container.add_paragraph()
+                r = p.add_run(f"{'#' * lvl} ")
+                _set_run_font(r, "SimHei")
+                r.bold = True
+
             for ch in node.get("content") or []:
                 if ch.get("type") == "text":
-                    p.add_run(ch.get("text") or "")
+                    run = p.add_run(ch.get("text") or "")
+                    process_marks(run, ch.get("marks"))
+                    _set_run_font(run, "SimHei")
+
         elif t in ("bulletList", "orderedList"):
             style = "List Bullet" if t == "bulletList" else "List Number"
             for item in node.get("content") or []:
@@ -229,29 +460,96 @@ def export_docx_bytes(doc_json: str) -> bytes:
                     continue
                 for sub in item.get("content") or []:
                     if sub.get("type") == "paragraph":
-                        tp = d.add_paragraph(style=style)
+                        p = container.add_paragraph(style=style)
                         for ch in sub.get("content") or []:
                             if ch.get("type") == "text":
-                                tp.add_run(ch.get("text") or "")
+                                run = p.add_run(ch.get("text") or "")
+                                process_marks(run, ch.get("marks"))
+                                _set_run_font(run, "SimHei")
+
+        elif t == "table":
+            row_nodes = [r for r in node.get("content", []) if r.get("type") == "tableRow"]
+            if not row_nodes:
+                return
+
+            first_row_cells = [c for c in row_nodes[0].get("content", []) if c.get("type") in ("tableCell", "tableHeader")]
+            max_cols = sum((c.get("attrs") or {}).get("colspan", 1) for c in first_row_cells)
+            if max_cols == 0:
+                return
+
+            table = container.add_table(rows=len(row_nodes), cols=max_cols)
+            table.style = 'Table Grid'
+
+            for r_idx, r_node in enumerate(row_nodes):
+                c_idx = 0
+                cell_nodes = [c for c in r_node.get("content", []) if c.get("type") in ("tableCell", "tableHeader")]
+                for cell_node in cell_nodes:
+                    if c_idx >= max_cols:
+                        break
+
+                    colspan = (cell_node.get("attrs") or {}).get("colspan", 1)
+                    if colspan > 1:
+                        end_idx = min(c_idx + colspan - 1, max_cols - 1)
+                        table.cell(r_idx, c_idx).merge(table.cell(r_idx, end_idx))
+
+                    cell = table.cell(r_idx, c_idx)
+                    if len(cell.paragraphs) > 0:
+                        cell.paragraphs[0].text = ""
+
+                    first_p = True
+                    for ch in cell_node.get("content", []):
+                        if ch.get("type") == "paragraph":
+                            if first_p and len(cell.paragraphs) > 0:
+                                p = cell.paragraphs[0]
+                                first_p = False
+                            else:
+                                p = cell.add_paragraph()
+
+                            for text_node in ch.get("content", []):
+                                if text_node.get("type") == "text":
+                                    run = p.add_run(text_node.get("text") or "")
+                                    process_marks(run, text_node.get("marks"))
+                                    _set_run_font(run, "SimHei")
+
+                            ta = (ch.get("attrs") or {}).get("textAlign")
+                            if ta == "center":
+                                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            elif ta == "right":
+                                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+                    c_idx += colspan
+
         elif t == "doc":
             for ch in node.get("content") or []:
-                add_paragraph_from_node(ch)
+                add_block_from_node(ch, container)
+        else:
+            for ch in node.get("content") or []:
+                if isinstance(ch, dict):
+                    add_block_from_node(ch, container)
 
-    add_paragraph_from_node(data)
+    add_block_from_node(data, d)
     buf = BytesIO()
     d.save(buf)
     return buf.getvalue()
 
 
-def export_pdf_bytes(doc_json: str) -> bytes:
-    html = tiptap_json_to_html(doc_json or "{}")
+def _fetch_resources(uri, rel):
+    if uri.startswith('/static/'):
+        static_dir = _get_static_dir()
+        return os.path.join(static_dir, uri[8:])
+    return uri
+
+
+def export_pdf_bytes(doc_json: str, page_settings: dict = None) -> bytes:
+    """从 TipTap JSON 生成 PDF 文档，使用已注册的通用字体"""
+    font_family = get_cjk_font_family()
+    html = tiptap_json_to_html(doc_json or "{}", font_family=font_family, page_settings=page_settings)
     out = BytesIO()
-    pisa.CreatePDF(src=html, dest=out, encoding="utf-8")
+    pisa.CreatePDF(src=html, dest=out, encoding="utf-8", link_callback=_fetch_resources)
     return out.getvalue()
 
 
 def apply_punctuation_fixes(text: str) -> str:
-    """Lightweight Chinese punctuation normalization."""
     text = re.sub(r"，{2,}", "，", text)
     text = re.sub(r"。{2,}", "。", text)
     text = text.replace("。。", "。")

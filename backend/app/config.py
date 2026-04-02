@@ -10,4 +10,5 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_ACCESS_TOKEN_EXPIRES = False  # demo; use timedelta hours=8 in prod
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024
-    ADMIN_IMPORT_TOKEN = os.environ.get("ADMIN_IMPORT_TOKEN", "")
+    ADMIN_IMPORT_TOKEN = os.environ.get("ADMIN_IMPORT_TOKEN", "admin123")
+

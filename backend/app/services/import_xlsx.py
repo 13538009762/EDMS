@@ -208,7 +208,7 @@ def import_master_data_xlsx(file_bytes: bytes) -> dict[str, Any]:
         db.session.execute(delete(User))
         db.session.execute(delete(Position))
         db.session.execute(delete(Department))
-        db.session.commit()
+        db.session.flush()
 
     flush_all()
 
@@ -274,8 +274,7 @@ def import_master_data_xlsx(file_bytes: bytes) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{row.get('login_name')}: {exc}")
 
-    db.session.commit()
-
+    # The calling API handler should commit the transaction.
     return {
         "departments": len(dept_rows),
         "positions": len(pos_rows),
