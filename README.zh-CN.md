@@ -1,6 +1,6 @@
-English(./README.md) | [简体中文](./README.zh-CN.md) 
-
 # EDMS — 电子文档管理系统
+
+[English](./README.md) | [简体中文](./README.zh-CN.md) 
 
 Vue 3 + Element Plus 前端，Flask 后端。支持主数据导入、文档编辑、协作、评论和审批工作流。
 

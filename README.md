@@ -1,6 +1,6 @@
-English(./README.md) | [简体中文](./README.zh-CN.md) 
+# EDMS — 电子文档管理系统
 
-# EDMS — Electronic Document Management System
+[English](./README.md) | [简体中文](./README.zh-CN.md) 
 
 Vue 3 + Element Plus frontend, Flask backend. Master data import, document editing, collaboration, comments, and approval workflows.
 
