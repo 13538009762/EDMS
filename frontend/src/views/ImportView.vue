@@ -17,12 +17,12 @@
         >
           <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
           <div class="el-upload__text">
-            {{ t("import.dragText", "将文件拖到此处，或") }} <em>{{ t("import.clickToUpload", "点击上传") }}</em>
+            {{ t("import.dragText") }} <em>{{ t("import.clickToUpload") }}</em>
           </div>
           <template #tip>
             <div class="el-upload__tip">
               <el-icon><InfoFilled /></el-icon>
-              {{ t("import.fileTip", "仅支持上传标准格式的 .xlsx 或 .xlsm Excel 文件") }}
+              {{ t("import.fileTip") }}
             </div>
           </template>
         </el-upload>

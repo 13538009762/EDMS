@@ -347,9 +347,12 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
     </style>
     """
     
-    footer = ""
-    if ps.get("showPageNumber"):
-        footer = '<div id="footer_content">Page <pdf:pagenumber> of <pdf:pagecount></div>'
+    # Footer and Page Numbering Logic
+    footer_html = ""
+    show_pg = ps.get("showPageNumber")
+    # Robust check for boolean or string "true" (defaulting to True if missing)
+    if show_pg is True or str(show_pg).lower() == "true" or show_pg is None:
+        footer_html = f'<div id="footer_content" style="font-family: {font_family}; text-align: center;">- <pdf:pagenumber /> -</div>'
 
     return f"""
     <!DOCTYPE html>
@@ -358,9 +361,9 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         <meta charset="utf-8">
         {style}
     </head>
-    <body>
+    <body style="font-family: {font_family};">
         {body_html}
-        {footer}
+        {footer_html}
     </body>
     </html>
     """

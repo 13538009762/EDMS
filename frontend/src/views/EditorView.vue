@@ -96,6 +96,10 @@
       <div class="toolbar-divider"></div>
       <el-button size="small" @click="insertImage">{{ t("editor.toolbar.image") }}</el-button>
       <el-button size="small" @click="insertCustomTable">{{ t("editor.toolbar.table") }}</el-button>
+      <el-button size="small" @click="insertImage">{{ t("editor.toolbar.image") }}</el-button>
+      <el-button size="small" @click="insertCustomTable">{{ t("editor.toolbar.table") }}</el-button>
+      <el-button size="small" @click="insertPageBreak">{{ t("editor.toolbar.pageBreak") }}</el-button>
+      <el-button size="small" type="success" plain @click="importDocx">{{ t("editor.toolbar.importDocx") }}</el-button>
       <el-button size="small" type="success" plain @click="importDocx">{{ t("editor.toolbar.importDocx") }}</el-button>
       <el-button size="small" @click="fixPunc">{{ t("editor.toolbar.fixPunc") }}</el-button>
       <el-button size="small" type="info" plain @click="searchVisible = !searchVisible">{{ t("editor.toolbar.findReplace") }}</el-button>
@@ -247,6 +251,9 @@
         <el-form-item :label="t('editor.marginBottom')">
           <el-slider v-model="page.marginBottom" :min="0" :max="100" />
         </el-form-item>
+        <el-form-item :label="t('editor.showPageNumber')">
+          <el-checkbox v-model="page.showPageNumber" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button type="primary" @click="savePageSettings">{{ t("editor.apply") }}</el-button>
@@ -300,7 +307,7 @@ import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import { ArrowDown } from "@element-plus/icons-vue";
 
-import { FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace } from "@/utils/tiptapExtensions";
+import { FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace, PageBreak } from "@/utils/tiptapExtensions";
 import api from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { attachDocCollab } from "@/composables/useDocSocket";
@@ -434,7 +441,7 @@ const editor = useEditor({
     Collaboration.configure({ document: ydoc }),
     CollaborationCursor.configure({ provider: { awareness } as never }),
     Table.configure({ resizable: true }),
-    FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace,
+    FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace, PageBreak,
   ],
   editable: true,
   onUpdate: () => scheduleSave(),
@@ -614,6 +621,9 @@ function scrollToComment(id: number) {
   const el = document.querySelector(`.tiptap span[data-comment-id="${id}"]`);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+function insertPageBreak() {
+  (editor.value?.chain().focus() as any).setPageBreak().run();
+}
 
 async function downloadDocx() {
   try {
@@ -725,18 +735,60 @@ watch(() => route.params.id, () => loadDoc());
 }
 .main-wrapper {
   flex: 1;
-  overflow: auto;
+  overflow: auto; /* 保证出现滚动条 */
   padding: 32px;
   display: flex;
   justify-content: center;
+  align-items: flex-start; /* 关键1：顶部对齐，允许底部无限生长 */
 }
+
 .main-paper {
   background: white;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  min-height: 1056px;
+  min-height: 800px; /* 纸张的初始最小高度 */
+  height: auto !important; /* 关键2：强制高度由内部文字撑开，覆盖之前的限制 */
+  flex-shrink: 0; /* 关键3（最核心）：禁止这块白纸在 flex 容器中被压缩！！ */
   box-sizing: border-box;
   padding: 40px;
+  padding-bottom: 80px; 
   transition: width 0.3s ease;
+}
+
+/* 分页符在编辑器里的长相 */
+/* 让分页符变成“两张纸中间的物理灰色缝隙” */
+:deep(hr.page-break) {
+  border: none;
+  /* 用和网页背景一样的灰色，制造“纸张断层”的视觉假象 */
+  background-color: var(--el-bg-color-page, #f5f7fa);
+  height: 40px; /* 两张纸之间的灰色距离 */
+  margin: 40px -40px; /* 撑满整个白纸的宽度，抵消 padding */
+  page-break-after: always;
+  position: relative;
+  clear: both;
+  cursor: default;
+  z-index: 1;
+}
+
+/* 模拟上一张纸的底部边缘和阴影 */
+:deep(hr.page-break::before) {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
+}
+
+/* 模拟下一张纸的顶部边缘和阴影 */
+:deep(hr.page-break::after) {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 .main-paper.A4 { width: 794px; }
 .main-paper.Letter { width: 816px; min-height: 1056px; }
@@ -831,6 +883,7 @@ watch(() => route.params.id, () => loadDoc());
 .tiptap :deep(.ProseMirror) {
   outline: none;
   min-height: 100%;
+  height: auto !important; /* 关键4：确保 Tiptap 编辑器本身高度能自动增长 */
 }
 .tiptap :deep(table) {
   border-collapse: collapse;

@@ -1,5 +1,4 @@
-import { Extension, Mark, mergeAttributes } from '@tiptap/core'
-
+import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core'
 export const FontSize = Extension.create({
   name: 'fontSize',
   addOptions() {
@@ -316,5 +315,27 @@ export const SearchAndReplace = Extension.create({
         },
       }),
     ]
+  },
+})
+export const PageBreak = Node.create({
+  name: 'pageBreak',
+  group: 'block',
+  
+  parseHTML() {
+    return [{ tag: 'hr.page-break' }]
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    // 渲染为一个带有 page-break class 的 hr 标签
+    return ['hr', mergeAttributes(HTMLAttributes, { class: 'page-break' })]
+  },
+  
+  addCommands() {
+    return {
+      setPageBreak: () => ({ chain }: any) => {
+        // 执行插入命令
+        return chain().insertContent({ type: this.name }).run()
+      },
+    } as any
   },
 })
