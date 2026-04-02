@@ -6,8 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKER_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/docker/"
-COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
 DATA_DIR="$SCRIPT_DIR/data"
 IMAGES_DIR="$SCRIPT_DIR/images"
@@ -161,3 +160,6 @@ echo ""
 # Show container status
 echo "Current container status:"
 $COMPOSE_CMD -f "$COMPOSE_FILE" ps
+
+echo ""
+read -p "Press Enter to continue..."

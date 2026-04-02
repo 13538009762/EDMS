@@ -5,8 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKER_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/docker/"
-COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -39,3 +38,5 @@ fi
 
 echo ""
 echo -e "${GREEN}[OK]${NC} Services stopped successfully"
+echo ""
+read -p "Press Enter to continue..."
