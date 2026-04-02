@@ -1,4 +1,4 @@
-# EDMS — 电子文档管理系统
+# EDMS — Electronic Document Management System
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) 
 
