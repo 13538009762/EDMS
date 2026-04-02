@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Backend service
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend/Dockerfile
+    image: edms-backend:latest
+    container_name: edms-backend
+    restart: unless-stopped
+    volumes:
+      # Persist database and uploaded files
+      - ./data/backend:/app/data
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:////app/data/edms.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
+    networks:
+      - edms-network
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Database service (SQLite doesn't need separate container, but keeping for future MySQL/PostgreSQL migration)
+  db:
+    image: alpine:latest
+    container_name: edms-db-placeholder
+    volumes:
+      - ./data/database:/var/lib/db
+    networks:
+      - edms-network
+    command: tail -f /dev/null
+
+  # Frontend service
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        - FRONTEND_DIR=frontend
+    image: edms-frontend:latest
+    container_name: edms-frontend
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    environment:
+      - BACKEND_URL=http://backend:5000
+    networks:
+      - edms-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  edms-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local

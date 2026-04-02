@@ -1,3 +1,5 @@
+[简体中文](./architecture.zh-CN.md) | English
+
 # Architecture overview
 
 - **Backend**: Flask REST API (`/api/*`), Flask-SocketIO for Yjs relay and awareness (`join_document`, `yjs_update`, `awareness_update`).

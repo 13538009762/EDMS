@@ -1,3 +1,5 @@
+[简体中文](./user-guide.zh-CN.md) | English
+
 # User guide
 
 1. **First import (recommended)**: Open **`/admin`**, upload the XLSX (`Departments`, `Positions`, `Managers`, `Employees`). This resets documents and master data. If the server sets `ADMIN_IMPORT_TOKEN`, enter it on that page.

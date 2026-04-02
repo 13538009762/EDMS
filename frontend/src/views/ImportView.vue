@@ -85,7 +85,6 @@ const file = ref<File | null>(null);
 const loading = ref(false);
 const result = ref<unknown>(null);
 const isError = ref(false); // 跟踪是否为报错信息
-const adminToken = ref("");
 
 function onFile(f: UploadFile) {
   file.value = f.raw || null;
@@ -120,10 +119,9 @@ async function upload() {
   const fd = new FormData();
   fd.append("file", file.value);
   try {
-    const { data } = await api.post("/master-data/import", fd, {
+    const { data } = await api.post("/admin/master-data/import", fd, {
       headers: {
         "Content-Type": "multipart/form-data",
-        ...(adminToken.value ? { "X-Admin-Token": adminToken.value } : {}),
       },
     });
     result.value = data;

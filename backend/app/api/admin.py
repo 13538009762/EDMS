@@ -1,7 +1,6 @@
 """Admin endpoints for master data import (requires manager authentication)."""
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import verify_jwt_in_request
-from flask_jwt_extended.exceptions import JWTExtendedException
 
 from app.extensions import db
 from app.models import User
@@ -41,31 +40,26 @@ def admin_status():
 def admin_import_master_data():
     """
     Import XLSX (clears documents and master data).
-    Requires a valid JWT token only if managers exist.
+    If no managers exist: allow import without auth.
+    If managers exist: require manager authentication.
     """
-    # Authorization logic
-    auth_ok = False
-    if not _has_managers():
-        auth_ok = True
-    else:
-        # Check for emergency token
-        admin_token = current_app.config.get("ADMIN_IMPORT_TOKEN")
-        header_token = request.headers.get("X-Admin-Import-Token")
-        if admin_token and header_token == admin_token:
-            auth_ok = True
-        else:
-            try:
-                verify_jwt_in_request(optional=False)
-                user = current_user()
-                if user and user.is_manager:
-                    auth_ok = True
-            except JWTExtendedException:
-                pass
+    # Check if there are any managers in the database
+    has_managers = _has_managers()
     
-    if not auth_ok:
-        return jsonify({
-            "error": "Authorization required. Please sign in as a manager to import master data."
-        }), 401
+    if has_managers:
+        # Verify JWT token and check if user is a manager
+        try:
+            verify_jwt_in_request()
+            user = current_user()
+            if not user or not user.is_manager:
+                return jsonify({
+                    "error": "Authorization required. Please sign in as a manager to import master data."
+                }), 403
+        except Exception:
+            return jsonify({
+                "error": "Authorization required. Please sign in as a manager to import master data."
+            }), 403
+    # If no managers exist, allow import without authentication
 
     if "file" not in request.files:
         return jsonify({"error": "file required"}), 400
