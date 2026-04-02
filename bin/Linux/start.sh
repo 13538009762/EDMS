@@ -128,7 +128,7 @@ else
     sleep 5
     
     # Verify containers are actually running
-    if docker ps --format "{{.Names}}" | grep -E "edms-backend|edms-frontend|edms-db-placeholder" | wc -l | grep -q "3"; then
+    if docker ps --format "{{.Names}}" | grep -E "edms-backend|edms-frontend" | wc -l | grep -q "2"; then
         echo ""
         echo -e "${GREEN}[OK]${NC} Containers started successfully"
     else
@@ -159,7 +159,7 @@ echo ""
 
 # Show container status
 echo "Current container status:"
-docker ps --format "{{.Names}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Ports}}" | grep -E "edms-backend|edms-frontend|edms-db-placeholder"
+docker ps --format "{{.Names}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Ports}}" | grep -E "edms-backend|edms-frontend"
 
 echo ""
 read -p "Press Enter to continue..."

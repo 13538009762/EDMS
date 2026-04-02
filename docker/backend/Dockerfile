@@ -6,6 +6,14 @@ WORKDIR /app
 # Install system dependencies (only what's needed at runtime)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 \
+    libfontconfig1 \
+    libjpeg62-turbo \
+    libpng-dev \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    fontconfig \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/*
 

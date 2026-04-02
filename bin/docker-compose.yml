@@ -19,24 +19,12 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
     networks:
       - edms-network
-    depends_on:
-      - db
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-  # Database service (SQLite doesn't need separate container, but keeping for future MySQL/PostgreSQL migration)
-  db:
-    image: alpine:latest
-    container_name: edms-db-placeholder
-    volumes:
-      - ./data/database:/var/lib/db
-    networks:
-      - edms-network
-    command: tail -f /dev/null
 
   # Frontend service
   frontend:

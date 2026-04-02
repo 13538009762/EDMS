@@ -29,8 +29,8 @@ fi
 
 # Stop and remove containers
 echo "Stopping EDMS services..."
-docker stop edms-backend edms-frontend edms-db-placeholder 2>/dev/null || true
-docker rm edms-backend edms-frontend edms-db-placeholder 2>/dev/null || true
+docker stop edms-backend edms-frontend 2>/dev/null || true
+docker rm edms-backend edms-frontend 2>/dev/null || true
 docker network rm bin_edms-network 2>/dev/null || true
 
 echo ""

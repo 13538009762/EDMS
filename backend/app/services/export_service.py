@@ -52,10 +52,9 @@ def get_cjk_font_family() -> str:
     cjk_candidates = [
         os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
         os.path.join(font_dir, "simhei.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "simhei.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\Windows"), "Fonts", "arialuni.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\Windows"), "Fonts", "simhei.ttf"),
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
     cjk_path = None
     for path in cjk_candidates:
@@ -541,10 +540,13 @@ def _fetch_resources(uri, rel):
 
 
 def export_pdf_bytes(doc_json: str, page_settings: dict = None) -> bytes:
-    """从 TipTap JSON 生成 PDF 文档，使用已注册的通用字体"""
-    font_family = get_cjk_font_family()
-    html = tiptap_json_to_html(doc_json or "{}", font_family=font_family, page_settings=page_settings)
+    """从 TipTap JSON 生成 PDF 文档，使用默认字体"""
+    # 简化版PDF导出，使用xhtml2pdf的默认字体处理
+    html = tiptap_json_to_html(doc_json or "{}", font_family="Arial", page_settings=page_settings)
     out = BytesIO()
+    # 移除字体相关的CSS属性，让xhtml2pdf使用默认字体
+    html = html.replace('-pdf-font-name: "Arial";', '')
+    html = html.replace('-pdf-encoding: "Identity-H";', '')
     pisa.CreatePDF(src=html, dest=out, encoding="utf-8", link_callback=_fetch_resources)
     return out.getvalue()
 
