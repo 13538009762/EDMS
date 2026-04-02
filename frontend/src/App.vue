@@ -1,4 +1,4 @@
-<template>
+npm<template>
   <el-config-provider :locale="elementLocale">
     <router-view />
   </el-config-provider>

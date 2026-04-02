@@ -206,3 +206,115 @@ export const CommentMark = Mark.create({
     } as any
   },
 })
+export const TableExit = Extension.create({
+  name: 'tableExit',
+  addKeyboardShortcuts() {
+    return {
+      'Enter': () => {
+        const { state } = this.editor
+        const { $from, empty } = state.selection
+        if (!empty) return false
+        
+        let tableDepth = -1
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'table') {
+            tableDepth = d
+            break
+          }
+        }
+        if (tableDepth === -1) return false
+        const tableEnd = $from.after(tableDepth)
+        return this.editor.chain().insertContentAt(tableEnd, { type: 'paragraph' }).focus().run()
+      },
+    }
+  },
+})
+
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+
+export const SearchAndReplace = Extension.create({
+  name: 'searchAndReplace',
+
+  addOptions() {
+    return {
+      searchResultClass: 'search-result',
+    }
+  },
+
+  addStorage() {
+    return {
+      searchTerm: '',
+      replaceTerm: '',
+    }
+  },
+
+  addCommands() {
+    return {
+      setSearchTerm: (term: string) => () => {
+        this.storage.searchTerm = term
+        return true
+      },
+      setReplaceTerm: (term: string) => () => {
+        this.storage.replaceTerm = term
+        return true
+      },
+      replace: () => ({ editor, state }: any) => {
+        const { searchTerm, replaceTerm } = this.storage
+        if (!searchTerm) return false
+        const { doc } = state
+        let foundPos: { from: number, to: number } | null = null
+        doc.descendants((node: any, pos: number) => {
+          if (foundPos) return false
+          if (node.isText) {
+            const index = node.text.indexOf(searchTerm)
+            if (index !== -1) {
+              foundPos = { from: pos + index, to: pos + index + searchTerm.length }
+            }
+          }
+        })
+        if (foundPos) {
+          editor.chain().insertContentAt(foundPos, replaceTerm).run()
+          return true
+        }
+        return false
+      },
+      replaceAll: () => ({ editor }: any) => {
+        let count = 0
+        while (editor.commands.replace() && count < 500) count++
+        return count > 0
+      },
+    } as any
+  },
+
+  addProseMirrorPlugins() {
+    const extension = this
+    return [
+      new Plugin({
+        key: new PluginKey('searchAndReplace'),
+        state: {
+          init() { return DecorationSet.empty },
+          apply(tr, oldState) {
+            const { searchTerm } = extension.storage
+            if (!searchTerm || searchTerm.length < 1) return DecorationSet.empty
+            const decorations: Decoration[] = []
+            tr.doc.descendants((node, pos) => {
+              if (node.isText) {
+                const text = node.text || ''
+                let index = 0
+                while ((index = text.indexOf(searchTerm, index)) !== -1) {
+                  decorations.push(Decoration.inline(pos + index, pos + index + searchTerm.length, { class: extension.options.searchResultClass }))
+                  index += searchTerm.length
+                }
+              }
+            })
+            return DecorationSet.create(tr.doc, decorations)
+          },
+        },
+        props: {
+          decorations(state) { return this.getState(state) },
+        },
+      }),
+    ]
+  },
+})

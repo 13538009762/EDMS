@@ -23,9 +23,9 @@
               <el-dropdown-item @click="downloadPdf">{{ t("editor.exportPdf") }}</el-dropdown-item>
               <el-dropdown-item v-if="meta.can_edit && meta.status === 'draft'" @click="showApproval = true">{{ t("editor.startApproval") }}</el-dropdown-item>
               <el-dropdown-item v-if="meta.status === 'rejected' && isOwner" @click="newVersion">{{ t("editor.newVersion") }}</el-dropdown-item>
-              <el-dropdown-item @click="showFind = true">{{ t("editor.findReplace") }}</el-dropdown-item>
-              <el-dropdown-item @click="runPunctuation">{{ t("editor.punctuation") }}</el-dropdown-item>
-              <el-dropdown-item @click="showPage = true">{{ t("editor.pageSetup") }}</el-dropdown-item>
+              <el-dropdown-item @click="searchVisible = !searchVisible">{{ t("editor.findReplace") }}</el-dropdown-item>
+              <el-dropdown-item @click="fixPunc">{{ t("editor.punctuation") }}</el-dropdown-item>
+              <el-dropdown-item @click="pageSettingsVisible = true">{{ t("editor.pageSetup") }}</el-dropdown-item>
               <el-dropdown-item v-if="meta.can_manage_permissions && meta.status === 'draft'" @click="showShare = true">{{ t("library.share") }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -42,20 +42,23 @@
         <el-option label="Times New Roman" value="Times New Roman" />
       </el-select>
       <el-select v-model="currentFontSize" size="small" style="width: 80px" @change="setFontSize">
-        <el-option label="12px" value="12px" />
-        <el-option label="14px" value="14px" />
-        <el-option label="16px" value="16px" />
-        <el-option label="18px" value="18px" />
-        <el-option label="24px" value="24px" />
-        <el-option label="36px" value="36px" />
+        <el-option v-for="size in ['12px', '14px', '16px', '18px', '24px', '36px']" :key="size" :label="size" :value="size" />
       </el-select>
       <div class="toolbar-divider"></div>
       
       <el-button-group class="toolbar-group">
-        <el-button size="small" :class="{ 'is-active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><b style="font-family: serif">B</b></el-button>
-        <el-button size="small" :class="{ 'is-active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i style="font-family: serif">I</i></el-button>
-        <el-button size="small" :class="{ 'is-active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><u style="font-family: serif">U</u></el-button>
-        <el-button size="small" :class="{ 'is-active': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><s style="font-family: serif">S</s></el-button>
+        <el-tooltip :content="t('editor.toolbar.bold', 'Bold')" placement="bottom">
+          <el-button size="small" :class="{ 'is-active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><b style="font-family: serif">B</b></el-button>
+        </el-tooltip>
+        <el-tooltip :content="t('editor.toolbar.italic', 'Italic')" placement="bottom">
+          <el-button size="small" :class="{ 'is-active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i style="font-family: serif">I</i></el-button>
+        </el-tooltip>
+        <el-tooltip :content="t('editor.toolbar.underline', 'Underline')" placement="bottom">
+          <el-button size="small" :class="{ 'is-active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><u style="font-family: serif">U</u></el-button>
+        </el-tooltip>
+        <el-tooltip :content="t('editor.toolbar.strike', 'Strike')" placement="bottom">
+          <el-button size="small" :class="{ 'is-active': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><s style="font-family: serif">S</s></el-button>
+        </el-tooltip>
       </el-button-group>
 
       <div class="toolbar-divider"></div>
@@ -79,31 +82,54 @@
       <div class="toolbar-divider"></div>
 
       <el-button-group class="toolbar-group">
-        <el-button size="small" :class="{ 'is-active': editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()">• List</el-button>
-        <el-button size="small" :class="{ 'is-active': editor.isActive('orderedList') }" @click="editor.chain().focus().toggleOrderedList().run()">1. List</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()">• {{ t("editor.toolbar.bulletList") }}</el-button>
+        <el-button size="small" :class="{ 'is-active': editor.isActive('orderedList') }" @click="editor.chain().focus().toggleOrderedList().run()">1. {{ t("editor.toolbar.orderedList") }}</el-button>
       </el-button-group>
       
       <div class="toolbar-divider"></div>
       
       <el-button-group class="toolbar-group">
-        <el-button size="small" @click="doOutdent">- Indent</el-button>
-        <el-button size="small" @click="doIndent">+ Indent</el-button>
+        <el-button size="small" @click="doOutdent">- {{ t("editor.toolbar.outdent") }}</el-button>
+        <el-button size="small" @click="doIndent">+ {{ t("editor.toolbar.indent") }}</el-button>
       </el-button-group>
 
       <div class="toolbar-divider"></div>
-      <el-button size="small" @click="insertImage">Img</el-button>
-      <el-button size="small" @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()">Table</el-button>
+      <el-button size="small" @click="insertImage">{{ t("editor.toolbar.image") }}</el-button>
+      <el-button size="small" @click="insertCustomTable">{{ t("editor.toolbar.table") }}</el-button>
+      <el-button size="small" type="success" plain @click="importDocx">{{ t("editor.toolbar.importDocx") }}</el-button>
+      <el-button size="small" @click="fixPunc">{{ t("editor.toolbar.fixPunc") }}</el-button>
+      <el-button size="small" type="info" plain @click="searchVisible = !searchVisible">{{ t("editor.toolbar.findReplace") }}</el-button>
+      
+      <el-button-group class="toolbar-group" v-if="editor && editor.isActive('table')">
+        <el-button size="small" @click="editor.chain().focus().addRowBefore().run()">{{ t("editor.toolbar.addRowBefore") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().addRowAfter().run()">{{ t("editor.toolbar.addRowAfter") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().deleteRow().run()">{{ t("editor.toolbar.deleteRow") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().addColumnBefore().run()">{{ t("editor.toolbar.addColumnBefore") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().addColumnAfter().run()">{{ t("editor.toolbar.addColumnAfter") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().deleteColumn().run()">{{ t("editor.toolbar.deleteColumn") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().deleteTable().run()">{{ t("editor.toolbar.deleteTable") }}</el-button>
+        <el-button size="small" @click="editor.chain().focus().toggleHeaderRow().run()">{{ t("editor.toolbar.headerRow") }}</el-button>
+      </el-button-group>
 
       <div class="toolbar-divider"></div>
       <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; margin-right:8px;">
-        <label>Col</label>
+        <label>{{ t("editor.toolbar.textColor") }}</label>
         <input type="color" v-model="currentColor" @change="setTextColor" style="width: 24px; height: 24px; padding: 0; border: none; cursor: pointer" />
       </div>
       <div style="display: flex; align-items: center; gap: 4px; font-size: 12px">
-        <label>Bg</label>
+        <label>{{ t("editor.toolbar.highlight") }}</label>
         <input type="color" v-model="currentHighlight" @change="setHighlight" style="width: 24px; height: 24px; padding: 0; border: none; cursor: pointer" />
       </div>
 
+    </div>
+
+    <!-- Search/Replace Bar -->
+    <div v-if="searchVisible" class="search-bar">
+      <el-input v-model="searchTerm" :placeholder="t('editor.searchPlaceholder')" size="small" style="width: 150px" @input="updateSearch" />
+      <el-input v-model="replaceTerm" :placeholder="t('editor.replacePlaceholder')" size="small" style="width: 150px" />
+      <el-button size="small" @click="doReplace">{{ t("editor.replace") }}</el-button>
+      <el-button size="small" @click="doReplaceAll">{{ t("editor.replaceAll") }}</el-button>
+      <el-button size="small" icon="Close" @click="searchVisible = false" />
     </div>
 
     <div class="body">
@@ -113,94 +139,113 @@
         </div>
       </div>
       <div class="side">
-        <div class="comments-header">
-          <h4>{{ t("editor.comments") }}</h4>
-          <el-button v-if="meta.can_comment" size="small" type="primary" style="width: 100%; margin-top: 8px; margin-bottom: 12px;" @click="addCommentOnSelection">
-            {{ t("editor.commentSelection") }}
-          </el-button>
-        </div>
-        
-        <div class="comment-filters">
-          <el-select v-model="filterAuthor" size="small" placeholder="Author" clearable class="filter-item">
-            <el-option v-for="a in authorOptions" :key="a" :label="a" :value="a" />
-          </el-select>
-          <el-select v-model="filterStatus" size="small" placeholder="Status" class="filter-item">
-            <el-option label="All" value="all" />
-            <el-option label="Active" value="active" />
-            <el-option label="Resolved" value="resolved" />
-          </el-select>
-          <el-date-picker v-model="filterDate" type="date" placeholder="Date" size="small" class="filter-item" value-format="YYYY-MM-DD" style="width:100%" />
-        </div>
+        <el-tabs v-model="activeSideTab" stretch>
+          <el-tab-pane :label="t('editor.commentsTab')" name="comments">
+            <div class="comments-header">
+              <el-button v-if="meta.can_comment" size="small" type="primary" style="width: 100%; margin-top: 8px; margin-bottom: 12px;" @click="addCommentOnSelection">
+                {{ t("editor.commentSelection") }}
+              </el-button>
+            </div>
+            
+            <div class="comment-filters">
+              <el-select v-model="filterAuthor" size="small" :placeholder="t('editor.commentsFilters.author')" clearable class="filter-item">
+                <el-option v-for="a in authorOptions" :key="a" :label="a" :value="a" />
+              </el-select>
+              <el-select v-model="filterStatus" size="small" :placeholder="t('editor.commentsFilters.status')" class="filter-item">
+                <el-option :label="t('editor.commentsFilters.all')" value="all" />
+                <el-option :label="t('editor.commentsFilters.active')" value="active" />
+                <el-option :label="t('editor.commentsFilters.resolved')" value="resolved" />
+              </el-select>
+              <el-date-picker v-model="filterDate" type="date" :placeholder="t('editor.commentsFilters.date')" size="small" class="filter-item" value-format="YYYY-MM-DD" style="width:100%" />
+            </div>
 
-        <div class="comments-list">
-          <div v-for="m in filteredComments" :key="m.id" class="comment" :class="{ 'resolved': m.status === 'resolved' }" @click="scrollToComment(m.id)">
-            <div class="meta">
-              <div style="font-weight: 500;">{{ m.author_login }}</div>
-              <div class="meta-right">
-                <span>{{ m.created_at ? m.created_at.split('T')[0] : '' }} · {{ m.status }}</span>
-                <el-button
-                  v-if="m.status === 'active'"
-                  link
-                  type="primary"
-                  @click.stop="resolveComment(m.id)"
-                  size="small"
-                >
-                  {{ t("editor.resolve") }}
-                </el-button>
+            <div class="comments-list">
+              <div v-for="m in threadedComments" :key="m.id" class="comment-group">
+                <div class="comment" :class="{ 'resolved': m.status === 'resolved' }" @click="scrollToComment(m.id)">
+                  <div class="meta">
+                    <div style="font-weight: 500;">{{ m.author_login }}</div>
+                    <div class="meta-right">
+                      <span>{{ m.created_at ? m.created_at.split('T')[0] : '' }} · {{ m.status }}</span>
+                      <el-button
+                        v-if="m.status === 'active'"
+                        link
+                        type="primary"
+                        @click.stop="resolveComment(m.id)"
+                        size="small"
+                      >
+                        {{ t("editor.resolve") }}
+                      </el-button>
+                    </div>
+                  </div>
+                  <div class="comment-body">{{ m.body }}</div>
+                  <el-input
+                    v-model="replyMap[m.id]"
+                    :placeholder="t('editor.replyPlaceholder')"
+                    size="small"
+                    @keyup.enter="replyTo(m.id)"
+                    @click.stop
+                  />
+                </div>
+                
+                <div v-if="m.replies && m.replies.length" class="replies">
+                  <div v-for="r in m.replies" :key="r.id" class="comment reply" :class="{ 'resolved': r.status === 'resolved' }">
+                    <div class="meta">
+                      <div style="font-weight: 500;">{{ r.author_login }}</div>
+                      <div class="meta-right">
+                        <span>{{ r.created_at ? r.created_at.split('T')[0] : '' }}</span>
+                      </div>
+                    </div>
+                    <div class="comment-body">{{ r.body }}</div>
+                  </div>
+                </div>
+              </div>
+              <el-empty v-if="threadedComments.length === 0" :description="t('editor.commentsFilters.noComments')" :image-size="60" />
+            </div>
+            <el-button size="small" @click="loadComments" style="width:100%; margin-top: 12px;">{{ t("editor.refreshComments") }}</el-button>
+          </el-tab-pane>
+
+          <el-tab-pane :label="t('editor.versionsTab')" name="versions">
+            <div class="version-list-container">
+              <div class="version-header">
+                <el-button size="small" type="primary" @click="$router.push(`/doc/${docId}/diff`)">{{ t("editor.viewDiff") }}</el-button>
+                <el-button size="small" @click="loadVersions">{{ t("editor.refresh") }}</el-button>
+              </div>
+              <div class="version-items">
+                <div v-for="v in versionList" :key="v.id" class="version-item">
+                  <div class="v-meta">
+                    <span class="v-no">V{{ v.version_no }}</span>
+                    <span class="v-user">{{ v.created_by_name }}</span>
+                  </div>
+                  <div class="v-time">{{ new Date(v.created_at).toLocaleString() }}</div>
+                </div>
               </div>
             </div>
-            <div class="comment-body">{{ m.body }}</div>
-            <el-input
-              v-model="replyMap[m.id]"
-              :placeholder="t('editor.replyPlaceholder')"
-              size="small"
-              @keyup.enter="replyTo(m.id)"
-              @click.stop
-            />
-          </div>
-          <el-empty v-if="filteredComments.length === 0" description="No comments" :image-size="60" />
-        </div>
-        <el-button size="small" @click="loadComments" style="width:100%; margin-top: 12px;">{{ t("editor.refreshComments") }}</el-button>
+          </el-tab-pane>
+        </el-tabs>
       </div>
     </div>
 
-    <!-- Modals -->
-    <el-dialog v-model="showFind" :title="t('editor.findReplaceTitle')" width="480px">
-      <el-input v-model="findText" :placeholder="t('editor.findPlaceholder')" />
-      <el-input
-        v-model="replaceText"
-        :placeholder="t('editor.replacePlaceholder')"
-        style="margin-top: 8px"
-      />
-      <template #footer>
-        <el-button @click="doReplace(false)">{{ t("editor.findNext") }}</el-button>
-        <el-button type="primary" @click="doReplace(true)">{{ t("editor.replaceAll") }}</el-button>
-      </template>
-    </el-dialog>
+    <DocumentShareDialog v-model="showShare" :document-id="docId" @saved="loadDoc" />
 
-    <el-dialog v-model="showPage" :title="t('editor.pageSetupTitle')" width="400px">
-      <el-form label-width="140px">
-        <el-form-item label="Paper Format">
+    <el-dialog v-model="pageSettingsVisible" :title="t('editor.pageSetupTitle')" width="400px">
+      <el-form label-width="120px">
+        <el-form-item :label="t('editor.orientation')">
+          <el-radio-group v-model="page.orientation">
+            <el-radio label="portrait">{{ t("editor.portrait") }}</el-radio>
+            <el-radio label="landscape">{{ t("editor.landscape") }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="t('editor.paperSize')">
           <el-select v-model="page.paperFormat">
             <el-option label="A4" value="A4" />
             <el-option label="Letter" value="Letter" />
-            <el-option label="Legal" value="Legal" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('editor.orientation')">
-          <el-select v-model="page.orientation">
-            <el-option :label="t('editor.portrait')" value="portrait" />
-            <el-option :label="t('editor.landscape')" value="landscape" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('editor.marginTop')">
-          <el-input-number v-model="page.marginTop" :min="5" />
+          <el-slider v-model="page.marginTop" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('editor.marginBottom')">
-          <el-input-number v-model="page.marginBottom" :min="5" />
-        </el-form-item>
-        <el-form-item :label="t('editor.showPageNumber')">
-          <el-switch v-model="page.showPageNumber" />
+          <el-slider v-model="page.marginBottom" :min="0" :max="100" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -220,14 +265,13 @@
         :placeholder="t('editor.approversPlaceholder')"
         style="width: 100%; margin-top: 12px"
       >
-        <el-option v-for="u in userOptions" :key="u.id" :label="`${u.login_name}`" :value="u.id" />
+        <el-option v-for="u in filteredUserOptions" :key="u.id" :label="`${u.login_name}`" :value="u.id" />
+
       </el-select>
       <template #footer>
         <el-button type="primary" @click="startApproval">{{ t("editor.start") }}</el-button>
       </template>
     </el-dialog>
-
-    <DocumentShareDialog v-model="showShare" :document-id="docId" @saved="loadDoc" />
   </div>
 </template>
 
@@ -249,58 +293,54 @@ import Highlight from "@tiptap/extension-highlight";
 import FontFamily from "@tiptap/extension-font-family";
 import Image from "@tiptap/extension-image";
 import Dropcursor from "@tiptap/extension-dropcursor";
+import Gapcursor from "@tiptap/extension-gapcursor";
 import Table from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import { ArrowDown } from "@element-plus/icons-vue";
 
-import { FontSize, LineHeight, Indent, CommentMark } from "@/utils/tiptapExtensions";
+import { FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace } from "@/utils/tiptapExtensions";
 import api from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { attachDocCollab } from "@/composables/useDocSocket";
-import { checkPunctuationIssues, fixPunctuation } from "@/utils/punctuation";
+import { fixPunctuation } from "@/utils/punctuation";
 import { ElMessage, ElMessageBox } from "element-plus";
 import mammoth from "mammoth";
-import type { UploadRawFile } from "element-plus";
 import DocumentShareDialog from "@/components/DocumentShareDialog.vue";
 
 const route = useRoute();
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const auth = useAuthStore();
 const docId = computed(() => Number(route.params.id));
 
 const loading = ref(true);
 const saving = ref(false);
 const title = ref("");
-const meta = ref({
+const meta = ref<any>({
   status: "draft",
   can_edit: false,
   can_comment: false,
   can_manage_permissions: false,
   owner_id: 0,
 });
+
 const showShare = ref(false);
-const hideResolved = ref(true); // Keeping for loadComments API compatibility, though we replaced with frontend block
-const comments = ref<
-  Array<{
-    id: number;
-    author_login: string;
-    body: string;
-    status: string;
-    anchor_json?: string;
-    created_at?: string;
-  }>
->([]);
+const comments = ref<Array<any>>([]);
 const replyMap = ref<Record<number, string>>({});
-const findText = ref("");
-const replaceText = ref("");
-const showFind = ref(false);
-const showPage = ref(false);
+const activeSideTab = ref("comments");
+const versionList = ref<Array<any>>([]);
+
+const searchVisible = ref(false);
+const searchTerm = ref("");
+const replaceTerm = ref("");
+const pageSettingsVisible = ref(false);
+
 const showApproval = ref(false);
 const approvalType = ref("parallel");
 const approverIds = ref<number[]>([]);
 const userOptions = ref<Array<{ id: number; login_name: string }>>([]);
+
 const page = ref({
   orientation: "portrait",
   marginTop: 40,
@@ -308,12 +348,12 @@ const page = ref({
   showPageNumber: true,
   paperFormat: "A4",
 });
+
 const saveHint = ref("");
 const collabColors = ref<Array<{ name: string; color: string }>>([]);
 
-// Toolbars and Filters
-const currentFontFamily = ref("");
-const currentFontSize = ref("");
+const currentFontFamily = ref("Inter, sans-serif");
+const currentFontSize = ref("16px");
 const currentColor = ref("#000000");
 const currentHighlight = ref("#ffffff");
 
@@ -335,146 +375,135 @@ const filteredComments = computed(() => {
   });
 });
 
+const threadedComments = computed(() => {
+  const all = filteredComments.value;
+  const roots = all.filter(c => !c.parent_id);
+  const map: Record<number, any> = {};
+  all.forEach(c => { map[c.id] = { ...c, replies: [] }; });
+  all.forEach(c => {
+    if (c.parent_id && map[c.parent_id]) {
+      map[c.parent_id].replies.push(map[c.id]);
+    }
+  });
+  return roots.map(r => map[r.id]);
+});
+
 const isOwner = computed(() => auth.user?.id === meta.value.owner_id);
 
 const statusLabel = computed(() => {
-  const s = meta.value.status;
-  const map: Record<string, string> = {
-    draft: "editor.statusDraft",
-    in_approval: "editor.statusInApproval",
-    approved: "editor.statusApproved",
-    rejected: "editor.statusRejected",
-  };
-  const k = map[s];
-  return k ? t(k) : s;
+  return t("common.status." + meta.value.status);
 });
 
 const statusTag = computed(() => {
   const s = meta.value.status;
   if (s === "approved") return "success";
   if (s === "rejected") return "danger";
-  if (s === "in_approval") return "warning";
-  return "info";
+  return s === "in_approval" ? "warning" : "info";
 });
+
+const filteredUserOptions = computed(() => {
+  if (!auth.user) return userOptions.value;
+  return userOptions.value.filter((u) => u.id !== auth.user!.id);
+});
+
 
 const ydoc = new Y.Doc();
 const awareness = new Awareness(ydoc);
-const userColor = `#${Math.floor(Math.random() * 0xffffff)
-  .toString(16)
-  .padStart(6, "0")}`;
+const userColor = `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`;
 
 let collabDisconnect: (() => void) | null = null;
 const staticCollabs = ref<Array<{ name: string; color: string }>>([]);
 
 function refreshCollabList() {
-  // 如果是已批准状态，使用静态协作者列表
-  if (meta.value.status === 'approved') {
-    return;
-  }
-  // 否则使用实时协作者列表
+  if (meta.value.status === 'approved') return;
   const states = awareness.getStates();
   const list: Array<{ name: string; color: string }> = [];
   states.forEach((s) => {
-    const u = s.user as { name?: string; color?: string } | undefined;
+    const u = s.user as any;
     if (u?.name) list.push({ name: u.name, color: u.color || "#888" });
   });
   collabColors.value = list;
 }
 
-async function loadStaticCollaborators() {
-  try {
-    const { data } = await api.get(`/documents/${docId.value}/collaborators`);
-    staticCollabs.value = data.items.map((item: any) => ({
-      name: item.name,
-      color: "#888",
-    }));
-    // 如果是已批准状态，使用静态列表
-    if (meta.value.status === 'approved') {
-      collabColors.value = staticCollabs.value;
-    }
-  } catch (error) {
-    console.error("Failed to load collaborators:", error);
-  }
-}
-
 const editor = useEditor({
   extensions: [
     StarterKit.configure({ history: false }),
-    Underline,
-    TextStyle,
-    Color,
+    Underline, TextStyle, Color, FontFamily, Image, Dropcursor, Gapcursor, TableRow, TableHeader, TableCell,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     Collaboration.configure({ document: ydoc }),
-    CollaborationCursor.configure({
-      provider: { awareness } as never,
-    }),
-    FontFamily,
-    Image,
-    Dropcursor,
+    CollaborationCursor.configure({ provider: { awareness } as never }),
     Table.configure({ resizable: true }),
-    TableRow,
-    TableHeader,
-    TableCell,
-    FontSize,
-    LineHeight,
-    Indent,
-    CommentMark,
+    FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace,
   ],
   editable: true,
   onUpdate: () => scheduleSave(),
+  onSelectionUpdate: ({ editor }) => {
+    currentFontFamily.value = editor.getAttributes('textStyle').fontFamily || "Inter, sans-serif";
+    currentFontSize.value = editor.getAttributes('textStyle').fontSize || "16px";
+  }
 });
 
+let saveTimer = 0;
 function scheduleSave() {
   if (!meta.value.can_edit) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => saveNow(), 2000);
 }
-let saveTimer = 0;
 
-function doIndent() {
-  (editor.value?.chain().focus() as any).indent().run();
+function updateSearch() { (editor.value as any)?.commands.setSearchTerm(searchTerm.value); }
+function doReplace() {
+  (editor.value as any)?.commands.setReplaceTerm(replaceTerm.value);
+  (editor.value as any)?.commands.replace();
+}
+function doReplaceAll() {
+  (editor.value as any)?.commands.setReplaceTerm(replaceTerm.value);
+  (editor.value as any)?.commands.replaceAll();
 }
 
-function doOutdent() {
-  (editor.value?.chain().focus() as any).outdent().run();
+async function savePageSettings() {
+  try {
+    await api.patch(`/documents/${docId.value}`, { page_settings_json: JSON.stringify(page.value) });
+    pageSettingsVisible.value = false;
+    ElMessage.success(t("editor.pageSettingsSaved"));
+  } catch { ElMessage.error(t("common.failed", "Failed")); }
 }
 
-function setFontFamily(val: string) {
-  if (val) editor.value?.chain().focus().setFontFamily(val).run();
-  else editor.value?.chain().focus().unsetFontFamily().run();
+function fixPunc() {
+  if (!editor.value) return;
+  editor.value.commands.setContent(fixPunctuation(editor.value.getText())); 
+  ElMessage.success(t("editor.messages.punctuationFixed"));
 }
 
-function setFontSize(val: string) {
-  if (val) (editor.value?.chain().focus() as any).setFontSize(val).run();
-  else (editor.value?.chain().focus() as any).unsetFontSize().run();
+async function startApproval() {
+  if (!approverIds.value.length) return ElMessage.warning(t("editor.selectApprovers"));
+  try {
+    await api.post(`/documents/${docId.value}/approvals`, { type: approvalType.value, approvers: approverIds.value });
+    showApproval.value = false;
+    ElMessage.success(t("editor.approvalStarted"));
+    loadDoc();
+  } catch { ElMessage.error(t("editor.approvalFailed")); }
 }
 
-function setTextColor(e: Event) {
-  const target = e.target as HTMLInputElement;
-  editor.value?.chain().focus().setColor(target.value).run();
+async function newVersion() {
+  try {
+    await api.post(`/documents/${docId.value}/new-version`);
+    ElMessage.success(t("editor.newVersionOk"));
+    loadDoc();
+  } catch { ElMessage.error(t("common.failed", "Failed")); }
 }
 
-function setHighlight(e: Event) {
-  const target = e.target as HTMLInputElement;
-  editor.value?.chain().focus().toggleHighlight({ color: target.value }).run();
+async function loadStaticCollaborators() {
+  try {
+    const { data } = await api.get(`/documents/${docId.value}/collaborators`);
+    staticCollabs.value = data.items.map((item: any) => ({ name: item.name, color: "#888" }));
+    if (meta.value.status === 'approved') collabColors.value = staticCollabs.value;
+  } catch {}
 }
 
-async function insertImage() {
-  const { value } = await ElMessageBox.prompt(t("Enter image URL"), "Insert Image", {
-    confirmButtonText: t("editor.ok"),
-    cancelButtonText: t("inbox.cancel"),
-  });
-  if (value) {
-    editor.value?.chain().focus().setImage({ src: value }).run();
-  }
-}
-
-function scrollToComment(id: number) {
-  const el = document.querySelector(`.tiptap span[data-comment-id="${id}"]`);
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
+async function loadVersions() {
+  const { data } = await api.get(`/documents/${docId.value}/versions`);
+  versionList.value = data.items;
 }
 
 async function loadDoc() {
@@ -482,67 +511,30 @@ async function loadDoc() {
   try {
     const { data } = await api.get(`/documents/${docId.value}`);
     title.value = data.title;
-    meta.value = {
-      status: data.status,
-      can_edit: data.can_edit,
-      can_comment: data.can_comment,
-      can_manage_permissions: data.can_manage_permissions ?? false,
-      owner_id: data.owner_id,
-    };
+    meta.value = data;
     if (data.page_settings_json) {
-      try {
-        Object.assign(page.value, JSON.parse(data.page_settings_json));
-      } catch {
-        /* ignore */
-      }
+        const ps = JSON.parse(data.page_settings_json);
+        Object.assign(page.value, ps);
     }
-    if (editor.value) {
-      editor.value.setEditable(data.can_edit);
-    }
-    if (data.yjs_state_b64) {
-      const u = Uint8Array.from(atob(data.yjs_state_b64), (c) => c.charCodeAt(0));
-      Y.applyUpdate(ydoc, u);
-    } else if (data.content_json) {
-      const j =
-        typeof data.content_json === "string" ? JSON.parse(data.content_json) : data.content_json;
+    editor.value?.setEditable(data.can_edit);
+    if (data.yjs_state_b64) Y.applyUpdate(ydoc, Uint8Array.from(atob(data.yjs_state_b64), (c) => c.charCodeAt(0)));
+    else if (data.content_json) {
+      const j = typeof data.content_json === "string" ? JSON.parse(data.content_json) : data.content_json;
       await nextTick();
       editor.value?.commands.setContent(j);
     }
     collabDisconnect?.();
-    const name = auth.user?.display_name || auth.user?.login_name || "User";
-    collabDisconnect = attachDocCollab(docId.value, ydoc, awareness, {
-      name,
-      color: userColor,
-    });
-    awareness.off("update", refreshCollabList);
+    collabDisconnect = attachDocCollab(docId.value, ydoc, awareness, { name: auth.user?.display_name || auth.user?.login_name || "User", color: userColor });
     awareness.on("update", refreshCollabList);
-    
-    // 加载静态协作者列表
     await loadStaticCollaborators();
-    
-    // 如果不是已批准状态，刷新实时协作者列表
-    if (meta.value.status !== 'approved') {
-      refreshCollabList();
-    }
-    
+    if (meta.value.status !== 'approved') refreshCollabList();
     await loadComments();
-  } finally {
-    loading.value = false;
-  }
-}
+    await loadVersions();
+    const us = await api.get("/users");
 
-// 监听文档状态变化
-watch(() => meta.value.status, async (newStatus) => {
-  if (newStatus === 'approved') {
-    // 如果是已批准状态，使用静态协作者列表
-    if (staticCollabs.value.length > 0) {
-      collabColors.value = staticCollabs.value;
-    }
-  } else {
-    // 否则使用实时协作者列表
-    refreshCollabList();
-  }
-});
+    userOptions.value = us.data.items;
+  } finally { loading.value = false; }
+}
 
 async function saveNow() {
   if (!editor.value || !meta.value.can_edit) return;
@@ -550,40 +542,18 @@ async function saveNow() {
   try {
     const content_json = editor.value.getJSON();
     const update = Y.encodeStateAsUpdate(ydoc);
-    await api.put(`/documents/${docId.value}/content`, {
-      content_json,
-      yjs_state_b64: btoa(String.fromCharCode(...update)),
-    });
-    const time = new Date().toLocaleTimeString(locale.value === "zh-CN" ? "zh-CN" : "en-US");
-    saveHint.value = t("editor.savedAt", { time });
-  } catch {
-    saveHint.value = t("editor.saveFailed");
-  } finally {
-    saving.value = false;
-  }
+    await api.put(`/documents/${docId.value}/content`, { content_json, yjs_state_b64: btoa(String.fromCharCode(...update)) });
+    saveHint.value = t("editor.savedAt", { time: new Date().toLocaleTimeString() });
+  } catch { saveHint.value = t("editor.saveFailed"); }
+  finally { saving.value = false; }
 }
 
-async function saveTitle() {
-  await api.patch(`/documents/${docId.value}`, { title: title.value });
-}
-
-async function savePageSettings() {
-  await api.patch(`/documents/${docId.value}`, {
-    page_settings_json: JSON.stringify(page.value),
-  });
-  showPage.value = false;
-  ElMessage.success(t("editor.pageSettingsSaved"));
-}
+async function saveTitle() { await api.patch(`/documents/${docId.value}`, { title: title.value }); }
 
 async function loadComments() {
-  // We fetch all comments by setting hide_resolved to 0, since we filter locally now.
-  const { data } = await api.get(`/documents/${docId.value}/comments`, {
-    params: { hide_resolved: 0 },
-  });
+  const { data } = await api.get(`/documents/${docId.value}/comments`, { params: { hide_resolved: 0 } });
   comments.value = data.items;
 }
-
-watch(hideResolved, loadComments);
 
 async function resolveComment(id: number) {
   await api.patch(`/comments/${id}`, { status: "resolved" });
@@ -598,168 +568,84 @@ async function replyTo(parentId: number) {
   loadComments();
 }
 
-function runPunctuation() {
-  const tx = editor.value?.getText() || "";
-  const issues = checkPunctuationIssues(tx);
-  if (issues.length) ElMessageBox.alert(issues.join("\n"), t("editor.punctuationTitle"));
-  else ElMessage.success(t("editor.noIssues"));
+async function importDocx() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".docx";
+  input.onchange = async (e: any) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const result = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+      editor.value?.commands.setContent(result.value);
+      ElMessage.success(t("editor.messages.importSuccess"));
+    } catch { ElMessage.error(t("editor.messages.importFailed")); }
+  };
+  input.click();
 }
 
-function doReplace(all: boolean) {
-  const ed = editor.value;
-  if (!ed || !findText.value) return;
-  const { state } = ed.view;
-  const { doc } = state;
-  let text = "";
-  doc.descendants((node) => {
-    if (node.isText) text += node.text;
-    return true;
-  });
-  if (!all) {
-    const idx = text.indexOf(findText.value);
-    if (idx < 0) {
-      ElMessage.info(t("editor.notFound"));
-      return;
-    }
-  }
-  const fixed = all
-    ? text.split(findText.value).join(replaceText.value)
-    : text.replace(findText.value, replaceText.value);
-  const fixed2 = fixPunctuation(fixed);
-  ed.commands.setContent(
-    fixed2
-      ? [{ type: "paragraph", content: [{ type: "text", text: fixed2 }] }]
-      : [{ type: "paragraph" }],
-  );
-  showFind.value = false;
+function insertImage() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "image/*";
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return;
+    const formData = new FormData(); formData.append("file", file);
+    try {
+      const { data } = await api.post(`/upload-image`, formData);
+      editor.value?.chain().focus().setImage({ src: data.url }).run();
+    } catch { ElMessage.error(t("common.failed", "Failed")); }
+  };
+  input.click();
+}
+
+async function insertCustomTable() {
+  try {
+    const { value: rs } = await ElMessageBox.prompt(t("editor.messages.insertTableRows"), t("editor.messages.insertTableTitle"), { inputPattern: /^[1-9][0-9]?$/, inputValue: "3", confirmButtonText: t("common.ok"), cancelButtonText: t("common.cancel") });
+    const { value: cs } = await ElMessageBox.prompt(t("editor.messages.insertTableCols"), t("editor.messages.insertTableTitle"), { inputPattern: /^[1-9][0-9]?$/, inputValue: "3", confirmButtonText: t("common.ok"), cancelButtonText: t("common.cancel") });
+    editor.value?.chain().focus().insertTable({ rows: parseInt(rs), cols: parseInt(cs), withHeaderRow: true }).run();
+  } catch {}
+}
+
+function setFontSize(val: string) { (editor.value?.chain().focus() as any).setFontSize(val).run(); }
+function setFontFamily(val: string) { (editor.value?.chain().focus() as any).setFontFamily(val).run(); }
+function setTextColor(e: Event) { (editor.value?.chain().focus() as any).setColor((e.target as HTMLInputElement).value).run(); }
+function setHighlight(e: Event) { (editor.value?.chain().focus() as any).toggleHighlight({ color: (e.target as HTMLInputElement).value }).run(); }
+function doIndent() { (editor.value?.chain().focus() as any).indent().run(); }
+function doOutdent() { (editor.value?.chain().focus() as any).outdent().run(); }
+function scrollToComment(id: number) {
+  const el = document.querySelector(`.tiptap span[data-comment-id="${id}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function downloadDocx() {
   try {
-    const response = await fetch(`/api/documents/${docId.value}/export.docx`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("edms_token") || ""}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error("Export failed");
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `doc_${docId.value}.docx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const res = await api.get(`/documents/${docId.value}/export.docx`, { responseType: 'blob' });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(res.data); a.download = `doc_${docId.value}.docx`; a.click();
     ElMessage.success(t("editor.exportDocx"));
-  } catch (error) {
-    ElMessage.error(t("editor.exportFailed"));
-  }
+  } catch { ElMessage.error(t("editor.exportFailed")); }
 }
-
 async function downloadPdf() {
   try {
-    const response = await fetch(`/api/documents/${docId.value}/export.pdf`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("edms_token") || ""}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error("Export failed");
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `doc_${docId.value}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const res = await api.get(`/documents/${docId.value}/export.pdf`, { responseType: 'blob' });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(res.data); a.download = `doc_${docId.value}.pdf`; a.click();
     ElMessage.success(t("editor.exportPdf"));
-  } catch (error) {
-    ElMessage.error(t("editor.exportFailed"));
-  }
-}
-
-async function startApproval() {
-  try {
-    await api.post(`/documents/${docId.value}/approval`, {
-      flow_type: approvalType.value,
-      approver_ids: approverIds.value,
-    });
-    showApproval.value = false;
-    ElMessage.success(t("editor.approvalStarted"));
-    loadDoc();
-  } catch {
-    ElMessage.error(t("editor.approvalFailed"));
-  }
-}
-
-async function newVersion() {
-  await api.post(`/documents/${docId.value}/new-version`);
-  ElMessage.success(t("editor.newVersionOk"));
-  loadDoc();
-}
-
-async function onImportDocx(file: UploadRawFile) {
-  const ab = await file.arrayBuffer();
-  const { value: html } = await mammoth.convertToHtml({ arrayBuffer: ab });
-  editor.value?.commands.setContent(html);
-  await saveNow();
-  ElMessage.success(t("editor.docxImported"));
-  return false;
+  } catch { ElMessage.error(t("editor.exportFailed")); }
 }
 
 async function addCommentOnSelection() {
-  const ed = editor.value;
-  if (!ed) return;
-  const { from, to } = ed.state.selection;
-  if (from === to) {
-    ElMessage.warning(t("editor.selectTextFirst"));
-    return;
-  }
-  const { value } = await ElMessageBox.prompt(t("editor.commentPrompt"), t("editor.newCommentTitle"), {
-    confirmButtonText: t("editor.ok"),
-    cancelButtonText: t("inbox.cancel"),
-  });
-  if (!value?.trim()) return;
-  const { data } = await api.post(`/documents/${docId.value}/comments`, {
-    body: value.trim(),
-    anchor_json: JSON.stringify({ from, to }),
-  });
-  // Highlight the text using our custom comment extension
-  ;(ed.chain().focus() as any).setComment(data.id).run();
-  await saveNow();
-  loadComments();
+  if (!editor.value || editor.value.state.selection.empty) return ElMessage.warning(t("editor.selectTextFirst"));
+  try {
+    const { value: body } = await ElMessageBox.prompt(t("editor.commentPrompt"), t("editor.newCommentTitle"), { confirmButtonText: t("common.ok"), cancelButtonText: t("common.cancel") });
+    if (body) {
+      const { from, to } = editor.value.state.selection;
+      const { data } = await api.post(`/documents/${docId.value}/comments`, { body, anchor_json: JSON.stringify({ from, to }) });
+      (editor.value.chain().focus() as any).setComment(data.id).run();
+      loadComments();
+    }
+  } catch {}
 }
 
-watch(showApproval, async (v) => {
-  if (!v) return;
-  const { data } = await api.get("/users");
-  userOptions.value = data.items;
-});
-
-onMounted(async () => {
-  await auth.fetchMe().catch(() => {});
-  await loadDoc();
-  window.addEventListener("beforeunload", saveNow);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("beforeunload", saveNow);
-  void saveNow();
-  awareness.off("update", refreshCollabList);
-  collabDisconnect?.();
-  editor.value?.destroy();
-});
-
-watch(
-  () => route.params.id,
-  () => loadDoc(),
-);
+onMounted(() => loadDoc());
+onBeforeUnmount(() => { collabDisconnect?.(); awareness.off("update", refreshCollabList); editor.value?.destroy(); });
+watch(() => route.params.id, () => loadDoc());
 </script>
 
 <style scoped>
@@ -770,7 +656,6 @@ watch(
   background-color: var(--el-bg-color-page, #f5f7fa);
 }
 
-/* Header */
 .header-bar {
   display: flex;
   justify-content: space-between;
@@ -787,7 +672,6 @@ watch(
 .status-tag { margin-left: 8px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
 
-/* Avatars */
 .collab-avatars {
   display: flex;
   margin-right: 16px;
@@ -809,7 +693,6 @@ watch(
 }
 .avatar-dot:first-child { margin-left: 0; }
 
-/* Toolbar */
 .editor-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -818,8 +701,6 @@ watch(
   padding: 8px 16px;
   background-color: white;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-  z-index: 10;
 }
 .toolbar-divider {
   width: 1px;
@@ -836,7 +717,6 @@ watch(
   border-color: var(--el-color-primary-light-5);
 }
 
-/* Body and Paper */
 .body {
   display: flex;
   flex: 1;
@@ -858,12 +738,10 @@ watch(
   padding: 40px;
   transition: width 0.3s ease;
 }
-/* Paper Formats */
 .main-paper.A4 { width: 794px; }
 .main-paper.Letter { width: 816px; min-height: 1056px; }
 .main-paper.Legal { width: 816px; min-height: 1344px; }
 
-/* Sidebar */
 .side {
   width: 320px;
   background-color: white;
@@ -872,16 +750,13 @@ watch(
   flex-direction: column;
 }
 .comments-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 8px 16px;
 }
-.comments-header h4 { margin: 0; }
 .comment-filters {
-  padding: 12px 16px;
+  padding: 8px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
   background-color: #fafafa;
 }
 .comments-list {
@@ -889,49 +764,70 @@ watch(
   overflow-y: auto;
   padding: 0 16px 16px;
 }
+
+.comment-group { margin-bottom: 12px; }
 .comment {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   padding: 12px;
-  margin-top: 12px;
   background-color: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
 }
-.comment:hover {
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-.comment.resolved {
-  opacity: 0.6;
-  background-color: #f9f9f9;
-}
+.comment:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.comment.resolved { opacity: 0.6; }
 .meta {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
   margin-bottom: 6px;
   font-size: 13px;
 }
-.meta-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-.comment-body {
-  font-size: 14px;
-  margin-bottom: 12px;
-  line-height: 1.5;
-}
+.comment-body { margin-bottom: 8px; font-size: 14px; }
 
-/* Tiptap Editor Core */
-.tiptap {
-  outline: none;
-  min-height: 100%;
+.replies {
+  margin-left: 20px;
+  border-left: 2px solid #f0f0f0;
+  padding-left: 12px;
+  margin-top: 4px;
 }
+.comment.reply {
+  padding: 8px 10px;
+  margin-top: 4px;
+  font-size: 13px;
+  background-color: #fafafa;
+}
+.comment.reply .comment-body { margin-bottom: 0; }
+
+.version-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.version-header {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+}
+.version-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+.version-item {
+  padding: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: default;
+}
+.v-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.v-no { font-weight: bold; color: var(--el-color-primary); }
+.v-user { font-size: 12px; color: var(--el-text-color-secondary); }
+.v-time { font-size: 11px; color: var(--el-text-color-placeholder); }
+
+.tiptap { outline: none; }
 .tiptap :deep(.ProseMirror) {
   outline: none;
   min-height: 100%;
@@ -943,22 +839,22 @@ watch(
   margin: 0;
   overflow: hidden;
 }
-.tiptap :deep(table td),
-.tiptap :deep(table th) {
+.tiptap :deep(table td), .tiptap :deep(table th) {
   min-width: 1em;
   border: 1px solid var(--el-border-color-darker);
-  padding: 5px 8px;
+  padding: 3px 5px;
   vertical-align: top;
   box-sizing: border-box;
   position: relative;
 }
-.tiptap :deep(table th) {
-  font-weight: bold;
-  text-align: left;
-  background-color: #f5f5f5;
-}
-.tiptap :deep(img) {
-  max-width: 100%;
-  height: auto;
+.tiptap :deep(.search-result) { background-color: #ffde5e; }
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #f0f2f5;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  align-items: center;
 }
 </style>

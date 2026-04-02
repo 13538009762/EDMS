@@ -15,7 +15,19 @@
         show-icon
         :closable="false"
         class="alert"
-      />
+      >
+        <div v-if="status.has_users && status.sample_managers?.length" style="margin-top: 8px">
+          <span>{{ t('admin.tryLogin') }}</span>
+          <el-tag
+            v-for="m in status.sample_managers"
+            :key="m"
+            size="small"
+            class="tag-small"
+            @click="copyLogin(m)"
+          >{{ m }}</el-tag>
+        </div>
+      </el-alert>
+
       <el-form label-position="top" class="form">
         <el-form-item :label="t('admin.selectFile')">
           <el-upload
@@ -62,7 +74,8 @@ import LocaleSwitcher from "@/components/LocaleSwitcher.vue";
 const { t } = useI18n();
 const router = useRouter();
 
-const status = ref<{ has_users: boolean } | null>(null);
+const status = ref<{ has_users: boolean; sample_managers?: string[] } | null>(null);
+
 const file = ref<File | null>(null);
 const loading = ref(false);
 const resultJson = ref("");
@@ -102,10 +115,13 @@ async function doImport() {
     ElMessage.success(t("admin.importOk"));
     await loadStatus();
   } catch (err: unknown) {
-    const ax = err as { response?: { data?: { error?: string } } };
-    const msg = ax.response?.data?.error || String(err);
+    let msg = String(err);
+    if (axios.isAxiosError(err) && err.response) {
+      msg = err.response.data?.error || `Server error (${err.response.status}): ${err.response.statusText}`;
+    }
     resultJson.value = msg;
     ElMessage.error(msg);
+
   } finally {
     loading.value = false;
   }

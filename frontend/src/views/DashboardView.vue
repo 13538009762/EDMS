@@ -5,9 +5,8 @@
       <p class="subtitle">{{ t('dashboard.subtitle', 'Overview of your document management system statistics.') }}</p>
     </div>
 
-    <!-- KPI Cards -->
     <el-row :gutter="20" class="kpi-row">
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-icon total"><el-icon><Document /></el-icon></div>
           <div class="kpi-info">
@@ -16,27 +15,56 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      
+      <el-col :span="4">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-icon active"><el-icon><EditPen /></el-icon></div>
           <div class="kpi-info">
-            <div class="kpi-label">{{ t('dashboard.drafts', 'Drafts') }}</div>
+            <div class="kpi-label">{{ t('common.status.draft') }}</div>
             <div class="kpi-value">{{ draftsCount }}</div>
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      
+      <el-col :span="4">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-icon warning"><el-icon><Stamp /></el-icon></div>
           <div class="kpi-info">
-            <div class="kpi-label">{{ t('dashboard.inApproval', 'In Approval') }}</div>
+            <div class="kpi-label">{{ t('common.status.in_approval') }}</div>
             <div class="kpi-value">{{ inApprovalCount }}</div>
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+
+      <el-col :span="4">
         <el-card shadow="hover" class="kpi-card">
-          <div class="kpi-icon success"><el-icon><User /></el-icon></div>
+          <div class="kpi-icon success" style="background: var(--el-color-success-light-9); color: var(--el-color-success);">
+            <el-icon><CircleCheck /></el-icon>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-label">{{ t('common.status.approved') }}</div>
+            <div class="kpi-value">{{ approvedCount }}</div>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :span="4">
+        <el-card shadow="hover" class="kpi-card">
+          <div class="kpi-icon danger" style="background: var(--el-color-danger-light-9); color: var(--el-color-danger);">
+            <el-icon><CircleClose /></el-icon>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-label">{{ t('common.status.rejected') }}</div>
+            <div class="kpi-value">{{ rejectedCount }}</div>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :span="4">
+        <el-card shadow="hover" class="kpi-card">
+          <div class="kpi-icon info" style="background: var(--el-color-info-light-9); color: var(--el-color-info);">
+            <el-icon><User /></el-icon>
+          </div>
           <div class="kpi-info">
             <div class="kpi-label">{{ t('dashboard.totalUsers', 'Total Users') }}</div>
             <div class="kpi-value">{{ totalUsers }}</div>
@@ -45,7 +73,6 @@
       </el-col>
     </el-row>
 
-    <!-- Charts -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="12">
         <el-card shadow="hover" class="chart-card">
@@ -75,8 +102,7 @@
 import { ref, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import api from "@/api/client";
-import { Document, EditPen, Stamp, User } from "@element-plus/icons-vue";
-
+import { Document, EditPen, Stamp, User, CircleCheck, CircleClose } from "@element-plus/icons-vue";
 // ECharts imports
 import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
@@ -111,6 +137,13 @@ const trendData = ref<{ date: string; count: number }[]>([]);
 const draftsCount = computed(() => {
   return statusData.value.find((s) => s.status === "draft")?.count || 0;
 });
+const approvedCount = computed(() => {
+  return statusData.value.find((s) => s.status === "approved")?.count || 0;
+});
+
+const rejectedCount = computed(() => {
+  return statusData.value.find((s) => s.status === "rejected")?.count || 0;
+});
 
 const inApprovalCount = computed(() => {
   return statusData.value.find((s) => s.status === "in_approval")?.count || 0;
@@ -124,10 +157,10 @@ const statusColorMap: Record<string, string> = {
 };
 
 const statusLabelMap = computed(() => ({
-  draft: t('dashboard.statusDraft'),
-  in_approval: t('dashboard.statusInApproval'),
-  approved: t('dashboard.statusApproved'),
-  rejected: t('dashboard.statusRejected'),
+  draft: t('common.status.draft'),
+  in_approval: t('common.status.in_approval'),
+  approved: t('common.status.approved'),
+  rejected: t('common.status.rejected'),
 }));
 
 const pieOption = computed(() => {

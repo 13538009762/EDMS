@@ -14,7 +14,8 @@
         :placeholder="t('editor.sharingUser')"
         style="width: 200px"
       >
-        <el-option v-for="u in users" :key="u.id" :label="`${u.login_name}`" :value="u.id" />
+        <el-option v-for="u in filteredUsers" :key="u.id" :label="`${u.login_name}`" :value="u.id" />
+
       </el-select>
       <el-select v-model="row.role" style="width: 140px; margin-left: 8px">
         <el-option value="view" :label="t('editor.roleView')" />
@@ -54,9 +55,19 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+import { useAuthStore } from "@/stores/auth";
+import { computed } from "vue";
+const auth = useAuthStore();
+
 const users = ref<Array<{ id: number; login_name: string }>>([]);
 const rows = ref<Array<{ user_id: number | undefined; role: string }>>([]);
 const saving = ref(false);
+
+const filteredUsers = computed(() => {
+  if (!auth.user) return users.value;
+  return users.value.filter((u) => u.id !== auth.user!.id);
+});
+
 
 async function loadAll() {
   if (!props.documentId) return;

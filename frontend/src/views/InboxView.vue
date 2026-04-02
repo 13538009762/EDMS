@@ -1,30 +1,46 @@
 <template>
-  <div>
-    <h2>{{ t("inbox.title") }}</h2>
-    <el-button @click="load" :loading="loading">{{ t("inbox.refresh") }}</el-button>
-    <el-table :data="items" style="margin-top: 16px">
-      <el-table-column prop="document_id" :label="t('inbox.colDocId')" width="100" />
-      <el-table-column prop="title" :label="t('inbox.colTitle')" />
-      <el-table-column prop="flow_type" :label="t('inbox.colFlow')" width="120" />
-      <el-table-column :label="t('inbox.colProgress')">
-        <template #default="{ row }">
-          {{ row.progress.done }} / {{ row.progress.total }}
-        </template>
-      </el-table-column>
-      <el-table-column :label="t('inbox.colActions')" width="220">
-        <template #default="{ row }">
-          <el-button type="success" link @click="decide(row.participant_id, 'approve')">
-            {{ t("inbox.approve") }}
-          </el-button>
-          <el-button type="danger" link @click="openReject(row)">{{ t("inbox.reject") }}</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-dialog v-model="rejectDlg" :title="t('inbox.rejectTitle')" width="400px">
-      <el-input v-model="rejectReason" type="textarea" :rows="4" />
+  <div class="page-container">
+    <div class="page-header">
+      <h2>{{ t("inbox.title") }}</h2>
+    </div>
+    
+    <el-card shadow="sm" class="table-card">
+      <div class="toolbar">
+        <el-button @click="load" :loading="loading" :icon="Refresh">{{ t("inbox.refresh") }}</el-button>
+      </div>
+
+      <el-table :data="items" stripe style="width: 100%">
+        <el-table-column prop="document_id" :label="t('inbox.colDocId')" width="100" />
+        <el-table-column prop="title" :label="t('inbox.colTitle')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="flow_type" :label="t('inbox.colFlow')" width="140">
+          <template #default="{ row }">
+            <el-tag size="small" type="info">{{ row.flow_type }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('inbox.colProgress')" width="120">
+          <template #default="{ row }">
+            <span style="font-weight: 600; color: var(--el-color-primary);">{{ row.progress.done }}</span> / {{ row.progress.total }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('inbox.colActions')" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button type="success" link @click="decide(row.participant_id, 'approve')">
+              {{ t("inbox.approve") }}
+            </el-button>
+            <el-button type="danger" link @click="openReject(row)">{{ t("inbox.reject") }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-dialog v-model="rejectDlg" :title="t('inbox.rejectTitle')" width="420px" class="custom-dialog">
+      <div style="margin-bottom: 8px;">{{ t("inbox.reasonPrompt", "Please provide a reason for rejection:") }}</div>
+      <el-input v-model="rejectReason" type="textarea" :rows="4" placeholder="..." />
       <template #footer>
-        <el-button @click="rejectDlg = false">{{ t("inbox.cancel") }}</el-button>
-        <el-button type="danger" @click="confirmReject">{{ t("inbox.reject") }}</el-button>
+        <div class="dialog-footer">
+          <el-button @click="rejectDlg = false">{{ t("inbox.cancel") }}</el-button>
+          <el-button type="danger" @click="confirmReject">{{ t("inbox.reject") }}</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -35,6 +51,7 @@ import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import api from "@/api/client";
 import { ElMessage } from "element-plus";
+import { Refresh } from "@element-plus/icons-vue"; // 引入图标
 
 interface InboxRow {
   participant_id: number;
@@ -87,3 +104,33 @@ function confirmReject() {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.page-container {
+  padding: 24px 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.table-card {
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.toolbar {
+  margin-bottom: 16px;
+  display: flex;
+}
+</style>
