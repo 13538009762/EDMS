@@ -6,11 +6,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKER_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/docker/"
-COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
-ENV_FILE="$SCRIPT_DIR/.env"
-DATA_DIR="$SCRIPT_DIR/data"
-IMAGES_DIR="$SCRIPT_DIR/images"
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
+ENV_FILE="$SCRIPT_DIR/../.env"
+DATA_DIR="$SCRIPT_DIR/../data"
+IMAGES_DIR="$SCRIPT_DIR/../images"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -123,13 +122,13 @@ else
     echo ""
     
     # Start containers
-    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Creating|Starting|Started|Created" || true
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build 2>&1 | grep -E "Creating|Starting|Started|Created|network" || true
     
     # Wait for containers to start
     sleep 5
     
     # Verify containers are actually running
-    if $COMPOSE_CMD -f "$COMPOSE_FILE" ps -q 2>/dev/null | grep -q .; then
+    if docker ps --format "{{.Names}}" | grep -E "edms-backend|edms-frontend" | wc -l | grep -q "2"; then
         echo ""
         echo -e "${GREEN}[OK]${NC} Containers started successfully"
     else
@@ -160,4 +159,7 @@ echo ""
 
 # Show container status
 echo "Current container status:"
-$COMPOSE_CMD -f "$COMPOSE_FILE" ps
+docker ps --format "{{.Names}}\t{{.Image}}\t{{.Command}}\t{{.Status}}\t{{.Ports}}" | grep -E "edms-backend|edms-frontend"
+
+echo ""
+read -p "Press Enter to continue..."

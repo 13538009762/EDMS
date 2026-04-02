@@ -108,20 +108,20 @@ match/
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml logs -f
+docker-compose -f bin\docker-compose.yml logs -f
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml logs -f
+docker compose -f bin/docker-compose.yml logs -f
 ```
 
 ### 重启服务
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml restart
+docker-compose -f bin\docker-compose.yml restart
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml restart
+docker compose -f bin/docker-compose.yml restart
 ```
 
 ### 重新构建
@@ -138,10 +138,10 @@ docker\build.bat
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml down -v
+docker-compose -f bin\docker-compose.yml down -v
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml down -v
+docker compose -f bin/docker-compose.yml down -v
 ```
 
 ## 镜像导出与分发
@@ -215,13 +215,6 @@ sudo systemctl start docker
 # 查看后端日志
 docker-compose -f docker/docker-compose.yml logs backend
 ```
-
-## 安全建议
-
-1. **修改 JWT 密钥**: 自动生成的密钥仅用于开发环境，生产环境务必修改 `JWT_SECRET_KEY`
-2. **使用 HTTPS**: 生产环境建议配置 SSL 证书
-3. **限制 CORS**: 根据实际需求配置 `CORS_ORIGINS`
-4. **定期备份**: 定期备份 `docker/data/` 目录
 
 ## 系统要求
 

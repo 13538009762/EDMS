@@ -5,8 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCKER_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/docker/"
-COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/../docker-compose.yml"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -30,12 +29,11 @@ fi
 
 # Stop and remove containers
 echo "Stopping EDMS services..."
-$COMPOSE_CMD -f "$COMPOSE_FILE" down
-if [ $? -ne 0 ]; then
-    echo ""
-    echo -e "${RED}ERROR: Failed to stop services${NC}"
-    exit 1
-fi
+docker stop edms-backend edms-frontend 2>/dev/null || true
+docker rm edms-backend edms-frontend 2>/dev/null || true
+docker network rm bin_edms-network 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}[OK]${NC} Services stopped successfully"
+echo ""
+read -p "Press Enter to continue..."

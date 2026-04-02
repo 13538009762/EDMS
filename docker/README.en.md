@@ -108,20 +108,20 @@ All data is saved in the `docker/data/` directory:
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml logs -f
+docker-compose -f bin\docker-compose.yml logs -f
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml logs -f
+docker compose -f bin/docker-compose.yml logs -f
 ```
 
 ### Restart Services
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml restart
+docker-compose -f bin\docker-compose.yml restart
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml restart
+docker compose -f bin/docker-compose.yml restart
 ```
 
 ### Rebuild
@@ -138,10 +138,10 @@ docker\build.bat
 
 ```bash
 # Windows
-docker-compose -f docker/docker-compose.yml down -v
+docker-compose -f bin\docker-compose.yml down -v
 
 # Linux/macOS
-docker compose -f docker/docker-compose.yml down -v
+docker compose -f bin/docker-compose.yml down -v
 ```
 
 ## Image Export and Distribution
@@ -215,13 +215,6 @@ If running for the first time or migrating data:
 # View backend logs
 docker-compose -f docker/docker-compose.yml logs backend
 ```
-
-## Security Recommendations
-
-1. **Change JWT Secret**: Auto-generated key is for development only. Must change `JWT_SECRET_KEY` in production
-2. **Use HTTPS**: Configure SSL certificates in production
-3. **Restrict CORS**: Configure `CORS_ORIGINS` according to actual needs
-4. **Regular Backups**: Regularly backup the `docker/data/` directory
 
 ## System Requirements
 
