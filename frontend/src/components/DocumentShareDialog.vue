@@ -15,25 +15,47 @@
         style="width: 200px"
       >
         <el-option v-for="u in filteredUsers" :key="u.id" :label="`${u.login_name}`" :value="u.id" />
+      </el-select>
 
-      </el-select>
       <el-select v-model="row.role" style="width: 140px; margin-left: 8px">
-        <el-option value="view" :label="t('editor.roleView')" />
-        <el-option value="edit" :label="t('editor.roleEdit')" />
-        <el-option value="comment" :label="t('editor.roleComment')" />
+        <template #label>
+          <el-tag
+            :type="row.role === 'edit' ? 'primary' : row.role === 'comment' ? 'warning' : 'info'"
+            disable-transitions
+          >
+            {{ row.role === 'edit' ? t('editor.roleEdit') : row.role === 'comment' ? t('editor.roleComment') : t('editor.roleView') }}
+          </el-tag>
+        </template>
+        <el-option value="view" :label="t('editor.roleView')">
+          <el-tag type="info" size="small">{{ t('editor.roleView') }}</el-tag>
+        </el-option>
+        <el-option value="edit" :label="t('editor.roleEdit')">
+          <el-tag type="primary" size="small">{{ t('editor.roleEdit') }}</el-tag>
+        </el-option>
+        <el-option value="comment" :label="t('editor.roleComment')">
+          <el-tag type="warning" size="small">{{ t('editor.roleComment') }}</el-tag>
+        </el-option>
       </el-select>
-      <el-button type="danger" link style="margin-left: 8px" @click="rows.splice(idx, 1)">{{
-        t("editor.sharingRemove")
-      }}</el-button>
+
+      <el-button type="danger" link :icon="Delete" style="margin-left: 12px" @click="rows.splice(idx, 1)">
+        {{ t("editor.sharingRemove") }}
+      </el-button>
     </div>
-    <el-button @click="rows.push({ user_id: undefined, role: 'view' })">{{
-      t("editor.sharingAdd")
-    }}</el-button>
+
+    <el-button
+      type="primary"
+      plain
+      style="width: 100%; margin-top: 8px; margin-bottom: 16px; border-style: dashed;"
+      :icon="Plus"
+      @click="rows.push({ user_id: undefined, role: 'view' })"
+    >
+      {{ t("editor.sharingAdd") }}
+    </el-button>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">{{ t("inbox.cancel") }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{
-        t("editor.sharingSave")
-      }}</el-button>
+      <el-button type="primary" :icon="Check" :loading="saving" @click="save">
+        {{ t("editor.sharingSave") }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -43,6 +65,8 @@ import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import api from "@/api/client";
 import { ElMessage } from "element-plus";
+// 💡 新增：引入图标
+import { Plus, Delete, Check } from "@element-plus/icons-vue";
 
 const props = defineProps<{
   modelValue: boolean;

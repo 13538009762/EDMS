@@ -338,4 +338,9 @@ export const PageBreak = Node.create({
       },
     } as any
   },
+addKeyboardShortcuts() {
+    return {
+      'Mod-Enter': () => (this.editor.commands as any).setPageBreak(),
+    }
+  },
 })
