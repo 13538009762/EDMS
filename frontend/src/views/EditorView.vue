@@ -96,10 +96,6 @@
       <div class="toolbar-divider"></div>
       <el-button size="small" @click="insertImage">{{ t("editor.toolbar.image") }}</el-button>
       <el-button size="small" @click="insertCustomTable">{{ t("editor.toolbar.table") }}</el-button>
-      <el-button size="small" @click="insertImage">{{ t("editor.toolbar.image") }}</el-button>
-      <el-button size="small" @click="insertCustomTable">{{ t("editor.toolbar.table") }}</el-button>
-      <el-button size="small" @click="insertPageBreak">{{ t("editor.toolbar.pageBreak") }}</el-button>
-      <el-button size="small" type="success" plain @click="importDocx">{{ t("editor.toolbar.importDocx") }}</el-button>
       <el-button size="small" type="success" plain @click="importDocx">{{ t("editor.toolbar.importDocx") }}</el-button>
       <el-button size="small" @click="fixPunc">{{ t("editor.toolbar.fixPunc") }}</el-button>
       <el-button size="small" type="info" plain @click="searchVisible = !searchVisible">{{ t("editor.toolbar.findReplace") }}</el-button>
@@ -307,7 +303,7 @@ import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import { ArrowDown } from "@element-plus/icons-vue";
 
-import { FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace, PageBreak } from "@/utils/tiptapExtensions";
+import { FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace } from "@/utils/tiptapExtensions";
 import api from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { attachDocCollab } from "@/composables/useDocSocket";
@@ -441,7 +437,7 @@ const editor = useEditor({
     Collaboration.configure({ document: ydoc }),
     CollaborationCursor.configure({ provider: { awareness } as never }),
     Table.configure({ resizable: true }),
-    FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace, PageBreak,
+    FontSize, LineHeight, Indent, CommentMark, TableExit, SearchAndReplace,
   ],
   editable: true,
   onUpdate: () => scheduleSave(),
@@ -621,9 +617,7 @@ function scrollToComment(id: number) {
   const el = document.querySelector(`.tiptap span[data-comment-id="${id}"]`);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-function insertPageBreak() {
-  (editor.value?.chain().focus() as any).setPageBreak().run();
-}
+
 
 async function downloadDocx() {
   try {

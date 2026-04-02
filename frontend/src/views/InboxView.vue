@@ -10,24 +10,47 @@
       </div>
 
       <el-table :data="items" stripe style="width: 100%">
-        <el-table-column prop="document_id" :label="t('inbox.colDocId')" width="100" />
-        <el-table-column prop="title" :label="t('inbox.colTitle')" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="flow_type" :label="t('inbox.colFlow')" width="140">
+        <el-table-column :label="t('inbox.colDocId')" width="100">
+          <template #default="{ row }">
+            {{ row.document_id }}
+          </template>
+        </el-table-column>
+        
+        <el-table-column :label="t('inbox.colTitle')" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.title }}
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="t('inbox.colFlow')" width="140">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.flow_type }}</el-tag>
           </template>
         </el-table-column>
+
         <el-table-column :label="t('inbox.colProgress')" width="120">
           <template #default="{ row }">
             <span style="font-weight: 600; color: var(--el-color-primary);">{{ row.progress.done }}</span> / {{ row.progress.total }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('inbox.colActions')" width="160" fixed="right">
+
+        <el-table-column :label="t('inbox.colActions')" width="340" fixed="right">
           <template #default="{ row }">
-            <el-button type="success" link @click="decide(row.participant_id, 'approve')">
+            <el-button type="primary" size="small" @click="$router.push(`/doc/${row.document_id}`)">
+              {{ t("library.open") }}
+            </el-button>
+
+            <el-button type="info" plain size="small" @click="$router.push(`/doc/${row.document_id}/diff`)">
+              {{ t("library.diff") }}
+            </el-button>
+
+            <el-button type="success" size="small" @click="decide(row.participant_id, 'approve')">
               {{ t("inbox.approve") }}
             </el-button>
-            <el-button type="danger" link @click="openReject(row)">{{ t("inbox.reject") }}</el-button>
+
+            <el-button type="danger" size="small" @click="openReject(row)">
+              {{ t("inbox.reject") }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>

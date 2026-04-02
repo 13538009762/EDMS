@@ -61,21 +61,27 @@
         <el-table-column prop="owner_name" :label="t('library.colOwner')" min-width="120" />
         <el-table-column prop="owner_department" :label="t('library.colDepartment')" min-width="140" show-overflow-tooltip />
         <el-table-column prop="my_role" :label="t('library.colRole')" width="100" />
-        <el-table-column :label="t('library.colActions')" width="220" fixed="right">
+        <el-table-column :label="t('library.colActions')" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="open(row.id)">{{ t("library.open") }}</el-button>
+            <el-button type="primary" size="small" @click="open(row.id)">
+              {{ t("library.open") }}
+            </el-button>
+            
             <el-button
               v-if="row.can_manage_permissions && row.status === 'draft'"
               type="warning"
-              link
+              plain
+              size="small"
               @click="openShare(row.id)"
             >
               {{ t("library.share") }}
             </el-button>
+            
             <el-button
               v-if="row.status === 'approved'"
               type="info"
-              link
+              plain
+              size="small"
               @click="router.push({ name: 'diff', params: { id: row.id } })"
             >
               {{ t("library.diff") }}
