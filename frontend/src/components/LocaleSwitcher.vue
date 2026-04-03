@@ -8,6 +8,7 @@
       <el-dropdown-menu>
         <el-dropdown-item command="en">{{ t("nav.english") }}</el-dropdown-item>
         <el-dropdown-item command="zh-CN">{{ t("nav.chinese") }}</el-dropdown-item>
+        <el-dropdown-item command="ru">{{ t("nav.russian") }}</el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>

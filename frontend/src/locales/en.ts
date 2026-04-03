@@ -26,6 +26,7 @@ export default {
     language: "Language",
     english: "English",
     chinese: "中文",
+    russian: "Русский",
   },
   admin: {
     title: "Admin — Master data import",

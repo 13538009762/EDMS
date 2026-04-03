@@ -26,6 +26,7 @@ export default {
     language: "语言",
     english: "English",
     chinese: "中文",
+    russian: "Русский",
   },
   admin: {
     title: "管理 — 主数据导入",

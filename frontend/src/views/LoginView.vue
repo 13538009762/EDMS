@@ -1,6 +1,7 @@
 <template>
   <div class="wrap">
     <div class="top-bar">
+      <img src="/favicon.png" class="top-icon" alt="System Icon" />
       <LocaleSwitcher />
     </div>
     <div class="login-container">
@@ -96,6 +97,18 @@ async function submit() {
   top: 16px;
   right: 16px;
   z-index: 10;
+  display: flex;
+  align-items: center;
+}
+.top-icon {
+  width: clamp(40px, 10vw, 80px);
+  height: auto;
+  margin-right: 15px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  transition: transform 0.3s ease;
+}
+.top-icon:hover {
+  transform: scale(1.05);
 }
 .login-container {
   display: flex;

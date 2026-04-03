@@ -34,7 +34,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('inbox.colActions')" width="340" fixed="right">
+        <el-table-column :label="t('inbox.colActions')" width="420" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="$router.push(`/doc/${row.document_id}`)">
               {{ t("library.open") }}
