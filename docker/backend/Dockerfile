@@ -3,7 +3,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (only what's needed at runtime)
+# 安装系统依赖项
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 \
     libfontconfig1 \
@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender1 \
     fontconfig \
-    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/*
 

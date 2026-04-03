@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import urllib.request
 import logging
 from html import escape as html_escape
 from io import BytesIO
@@ -37,7 +36,7 @@ def _reportlab_can_embed_font_file(path: str) -> bool:
     """
     探测文件是否能被 ReportLab 嵌入 PDF。
     Debian/Ubuntu 自带的 NotoSansCJK-Regular.ttc 常为 CFF 轮廓，会报：
-    postscript outlines are not supported —— 需跳过并改用 OTF/TTF 或下载字体。
+    postscript outlines are not supported —— 须跳过并改用可嵌入的 TrueType（如 NotoSansSC-VF.ttf）。
     """
     if not path or not os.path.isfile(path):
         return False
@@ -68,14 +67,16 @@ def _is_arial_unicode_path(path: str) -> bool:
 
 
 def _get_static_dir() -> str:
-    """获取项目静态文件夹路径，优先使用 Flask 的 current_app，否则用当前文件所在目录"""
+    """
+    统一使用 app/static。无应用上下文时也解析到同一路径（export_service 位于 app/services/）。
+    """
     try:
         if current_app:
             return os.path.join(current_app.root_path, "static")
     except RuntimeError:
         pass
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_dir, "static")
+    services_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.normpath(os.path.join(services_dir, "..", "static"))
 
 
 def get_pdf_font_spec() -> tuple[str, str]:
@@ -84,6 +85,8 @@ def get_pdf_font_spec() -> tuple[str, str]:
 
     此前返回 ``"PDFCJK, PDFLatin"`` 并被写成 font-family: "PDFCJK, PDFLatin"，
     会被解析成「一个名字叫 PDFCJK, PDFLatin 的字体」，ReportLab 无法匹配，回退 Helvetica 导致中文/俄语变方块。
+
+    不在此处发起网络下载；字体须预先放入 app/static/fonts/（见 fonts-readme.txt，或运行 scripts/fetch_pdf_fonts.py）。
     """
     global _pdf_font_cache
     if _pdf_font_cache is not None:
@@ -94,10 +97,10 @@ def get_pdf_font_spec() -> tuple[str, str]:
     os.makedirs(font_dir, exist_ok=True)
     windir = os.environ.get("WINDIR", "C:\\Windows")
 
-    # ---------- 正文字体：优先 Arial Unicode（单文件覆盖中文+西里尔等） ----------
+    # ---------- 正文：Arial Unicode 或本地 VF TTF（见 app/static/fonts/fonts-readme.txt）----------
     cjk_candidates = [
         os.path.join(windir, "Fonts", "arialuni.ttf"),
-        os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
+        os.path.join(font_dir, "NotoSansSC-VF.ttf"),
         os.path.join(font_dir, "NotoSansSC-Regular.ttf"),
         os.path.join(font_dir, "simhei.ttf"),
         os.path.join(windir, "Fonts", "simhei.ttf"),
@@ -117,39 +120,11 @@ def get_pdf_font_spec() -> tuple[str, str]:
         logger.info("选用中文字体文件: %s", cjk_path)
         break
     if not cjk_path:
-        try:
-            noto_variants: list[tuple[str, str]] = [
-                (
-                    os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
-                    "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
-                ),
-                (
-                    os.path.join(font_dir, "NotoSansSC-Regular.ttf"),
-                    "https://github.com/googlefonts/noto-cjk/raw/main/Sans/SubsetTTF/SC/NotoSansSC-Regular.ttf",
-                ),
-            ]
-            for noto_local, noto_url in noto_variants:
-                if not os.path.exists(noto_local):
-                    logger.info("正在下载字体 %s …", os.path.basename(noto_local))
-                    req = urllib.request.Request(
-                        noto_url, headers={"User-Agent": "Mozilla/5.0"}
-                    )
-                    with urllib.request.urlopen(req, timeout=120) as resp, open(
-                        noto_local, "wb"
-                    ) as out:
-                        out.write(resp.read())
-                if os.path.exists(noto_local) and _reportlab_can_embed_font_file(noto_local):
-                    cjk_path = noto_local
-                    logger.info("Noto 中文字体可用: %s", cjk_path)
-                    break
-                if os.path.exists(noto_local):
-                    logger.warning(
-                        "已下载但 ReportLab 无法加载: %s，尝试下一格式", noto_local
-                    )
-        except Exception as e:
-            logger.error("下载 Noto 中文字体失败: %s", e)
-    if not cjk_path:
-        raise RuntimeError("无法找到或下载支持中文的字体，请放置相应字体文件到 static/fonts 目录。")
+        raise RuntimeError(
+            "未找到可用于 PDF 的中文字体（须为 ReportLab 可嵌入的 TrueType）。请将 "
+            "NotoSansSC-VF.ttf 放到 app/static/fonts/（见 fonts-readme.txt），或在 backend "
+            "目录运行: python scripts/fetch_pdf_fonts.py"
+        )
 
     # 注册主字体族 PDFCJK（名称保留，便于与现有 HTML 逻辑一致）
     try:
@@ -174,6 +149,7 @@ def get_pdf_font_spec() -> tuple[str, str]:
         # ---------- 西里尔补充：SimHei/部分 CJK 字体不含俄语字形 ----------
         latin_candidates = [
             os.path.join(windir, "Fonts", "arialuni.ttf"),
+            os.path.join(font_dir, "NotoSans-VF.ttf"),
             os.path.join(font_dir, "NotoSans-Regular.ttf"),
             os.path.join(font_dir, "DejaVuSans.ttf"),
         ]
@@ -186,30 +162,6 @@ def get_pdf_font_spec() -> tuple[str, str]:
             latin_path = path
             logger.info("找到西里尔补充字体: %s", latin_path)
             break
-        if not latin_path:
-            try:
-                noto_latin_url = (
-                    "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/"
-                    "NotoSans/NotoSans-Regular.ttf"
-                )
-                noto_latin_local = os.path.join(font_dir, "NotoSans-Regular.ttf")
-                if not os.path.exists(noto_latin_local):
-                    logger.info("正在下载 Noto Sans（含西里尔文）…")
-                    req = urllib.request.Request(
-                        noto_latin_url,
-                        headers={"User-Agent": "Mozilla/5.0"},
-                    )
-                    with urllib.request.urlopen(req, timeout=60) as resp, open(
-                        noto_latin_local, "wb"
-                    ) as out_f:
-                        out_f.write(resp.read())
-                if os.path.exists(noto_latin_local) and _reportlab_can_embed_font_file(
-                    noto_latin_local
-                ):
-                    latin_path = noto_latin_local
-                    logger.info("Noto Sans 下载成功")
-            except Exception as e:
-                logger.error("下载 Noto Sans 失败: %s", e)
         if latin_path and os.path.abspath(latin_path) != os.path.abspath(cjk_path):
             try:
                 _register_ttface("PDFLatin", latin_path)
