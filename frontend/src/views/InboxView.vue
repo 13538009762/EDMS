@@ -33,6 +33,14 @@
             <span style="font-weight: 600; color: var(--el-color-primary);">{{ row.progress.done }}</span> / {{ row.progress.total }}
           </template>
         </el-table-column>
+        
+        <el-table-column :label="t('inbox.colSubmittedAt')" width="180">
+          <template #default="{ row }">
+            <div style="font-size: 13px; color: var(--el-text-color-secondary);">
+              {{ row.submitted_at?.replace('T', ' ').substring(0, 16) }}
+            </div>
+          </template>
+        </el-table-column>
 
         <el-table-column :label="t('inbox.colActions')" width="420" fixed="right">
           <template #default="{ row }">
@@ -82,6 +90,7 @@ interface InboxRow {
   title: string;
   flow_type: string;
   progress: { done: number; total: number };
+  submitted_at?: string;
 }
 
 const { t } = useI18n();

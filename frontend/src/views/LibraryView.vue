@@ -50,7 +50,7 @@
 
       <el-table :data="items" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="id" :label="t('library.colId')" width="80" />
-        <el-table-column prop="title" :label="t('library.colTitle')" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="title" :label="t('library.colTitle')" min-width="180" />
         <el-table-column prop="status" :label="t('library.colStatus')" width="160">
           <template #default="{ row }">
             <el-tag :type="row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : row.status === 'in_approval' ? 'warning' : 'info'">
@@ -59,7 +59,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" :label="t('library.colOwner')" min-width="120" />
-        <el-table-column prop="owner_department" :label="t('library.colDepartment')" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="owner_department" :label="t('library.colDepartment')" min-width="140" />
+        <el-table-column prop="updated_at" :label="t('library.colUpdatedAt')" width="170">
+          <template #default="{ row }">
+            <div v-if="row.updated_at" style="font-size: 13px; color: var(--el-text-color-secondary);">
+              {{ row.updated_at.replace('T', ' ').substring(0, 16) }}
+            </div>
+            <span v-else style="color: var(--el-text-color-placeholder);">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="my_role" :label="t('library.colRole')" width="100" />
         <el-table-column :label="t('library.colActions')" width="260" fixed="right">
           <template #default="{ row }">
@@ -118,6 +126,7 @@ interface DocRow {
   can_manage_permissions?: boolean;
   owner_name?: string;
   owner_department?: string;
+  updated_at?: string;
 }
 
 const router = useRouter();

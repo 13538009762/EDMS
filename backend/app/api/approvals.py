@@ -43,6 +43,7 @@ def inbox():
                     "flow_type": flow.flow_type,
                     "progress": {"done": done, "total": total},
                     "current_order": flow.current_order,
+                    "submitted_at": flow.created_at.isoformat() if flow.created_at else None,
                 }
             )
     return jsonify({"items": items})
