@@ -289,8 +289,15 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
             attrs_str += f' rowspan="{rowspan}"' if rowspan > 1 else ""
             return f"<{tag}{attrs_str}>{inner}</{tag}>"
         if t == "image":
-            src = (node.get("attrs") or {}).get("src") or ""
-            return f"<img src='{html_escape(src)}' style='max-width: 100%;' />"
+            attrs = node.get("attrs") or {}
+            src = attrs.get("src") or ""
+            align = attrs.get("textAlign")
+            width = attrs.get("width") or "100%"
+            style = f"max-width: 100%; width: {html_escape(width)};"
+            wrapper_style = "display: block;"
+            if align:
+                wrapper_style += f" text-align:{align};"
+            return f"<div style='{wrapper_style}'><img src='{html_escape(src)}' style='{style}' /></div>"
         if t == "pageBreak":
             return "<pdf:nextpage />"
         if t == "doc":
@@ -570,7 +577,56 @@ def export_docx_bytes(doc_json: str, page_settings: dict = None) -> bytes:
             except AttributeError:
                 container.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
+        elif t == "image":
+            attrs = node.get("attrs") or {}
+            src = attrs.get("src")
+            align = attrs.get("textAlign")
+            width_str = attrs.get("width")
+            
+            if src:
+                try:
+                    from docx.shared import Inches, Mm
+                    
+                    # 🖼️ Determine local path
+                    img_path = None
+                    if src.startswith('/static/'):
+                         static_dir = _get_static_dir()
+                         # src like "/static/images/..." 
+                         # static_dir like ".../static"
+                         # Extract relative path: src[8:] is "images/..."
+                         img_path = os.path.join(static_dir, src[8:])
+                    
+                    if img_path and os.path.exists(img_path):
+                        p = container.add_paragraph()
+                        # Handle alignment
+                        if align == "center":
+                            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        elif align == "right":
+                            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                        
+                        run = p.add_run()
+                        # Handle width
+                        w_val = None
+                        section = d.sections[0]
+                        max_w = section.page_width - section.left_margin - section.right_margin
+                        
+                        if width_str:
+                            if width_str.endswith("%"):
+                                percent = float(width_str[:-1]) / 100.0
+                                w_val = max_w * percent
+                            elif width_str.endswith("px"):
+                                w_val = Mm(float(width_str[:-2]) * 0.264)
+                        
+                        # Apply to docx
+                        if w_val:
+                            run.add_picture(img_path, width=min(w_val, max_w))
+                        else:
+                            run.add_picture(img_path, width=min(Inches(5.0), max_w))
+                except Exception as e:
+                    logger.error(f"DOCX image injection failed: {e}")
+
         elif t == "doc":
+
             for ch in node.get("content") or []:
                 add_block_from_node(ch, container)
         else:

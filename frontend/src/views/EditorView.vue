@@ -459,7 +459,7 @@ const editor = useEditor({
     StarterKit.configure({ history: false }),
     Underline, TextStyle, Color, FontFamily, CustomImage, Dropcursor, Gapcursor, TableRow, TableHeader, TableCell,
     Highlight.configure({ multicolor: true }),
-    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    TextAlign.configure({ types: ["heading", "paragraph", "image"] }),
     Collaboration.configure({ document: ydoc }),
     CollaborationCursor.configure({ provider: { awareness } as never }),
     Table.configure({ resizable: true }),
@@ -960,6 +960,19 @@ watch(() => route.params.id, () => loadDoc());
   max-width: 100%;
   height: auto;
   border-radius: 4px;
+  display: block;
+}
+.tiptap :deep(img[style*="text-align: center"]) {
+  margin-left: auto;
+  margin-right: auto;
+}
+.tiptap :deep(img[style*="text-align: right"]) {
+  margin-left: auto;
+  margin-right: 0;
+}
+.tiptap :deep(img[style*="text-align: left"]) {
+  margin-right: auto;
+  margin-left: 0;
 }
 .tiptap :deep(img.ProseMirror-selectednode) {
   outline: 3px solid var(--el-color-primary);
