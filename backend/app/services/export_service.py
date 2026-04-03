@@ -15,14 +15,57 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
 from flask import current_app
-from xhtml2pdf import pisa
 
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus.flowables import Spacer
+from reportlab.platypus.frames import Frame
+from xhtml2pdf.builders.watermarks import WaterMarks
+from xhtml2pdf.context import pisaContext
+from xhtml2pdf.default import DEFAULT_CSS
+from xhtml2pdf.document import get_encrypt_instance, pisaStory
+from xhtml2pdf.files import cleanFiles
+from xhtml2pdf.util import getBox
+from xhtml2pdf.xhtml2pdf_reportlab import PmlBaseDoc, PmlPageTemplate
+from reportlab.pdfbase.ttfonts import TTFont, TTFontFace
 from reportlab.lib.fonts import addMapping
 
 logger = logging.getLogger(__name__)
-_cjk_registered = False
+_pdf_font_cache: tuple[str, str] | None = None
+
+
+def _reportlab_can_embed_font_file(path: str) -> bool:
+    """
+    探测文件是否能被 ReportLab 嵌入 PDF。
+    Debian/Ubuntu 自带的 NotoSansCJK-Regular.ttc 常为 CFF 轮廓，会报：
+    postscript outlines are not supported —— 需跳过并改用 OTF/TTF 或下载字体。
+    """
+    if not path or not os.path.isfile(path):
+        return False
+    ext = os.path.splitext(path)[1].lower()
+    try:
+        if ext == ".ttc":
+            TTFontFace(path, validate=0, subfontIndex=0)
+        else:
+            TTFontFace(path, validate=0, subfontIndex=0)
+        return True
+    except Exception as exc:
+        logger.info("ReportLab 无法使用该字体文件，将尝试下一候选: %s (%s)", path, exc)
+        return False
+
+
+def _register_ttface(name: str, path: str) -> None:
+    """注册 TTF/OTF/TTC；集合字体需 subfontIndex。"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".ttc":
+        pdfmetrics.registerFont(TTFont(name, path, subfontIndex=0))
+    else:
+        pdfmetrics.registerFont(TTFont(name, path))
+
+
+def _is_arial_unicode_path(path: str) -> bool:
+    base = os.path.basename(path).lower()
+    return "arialuni" in base
+
 
 def _get_static_dir() -> str:
     """获取项目静态文件夹路径，优先使用 Flask 的 current_app，否则用当前文件所在目录"""
@@ -35,113 +78,166 @@ def _get_static_dir() -> str:
     return os.path.join(base_dir, "static")
 
 
-def get_cjk_font_family() -> str:
+def get_pdf_font_spec() -> tuple[str, str]:
     """
-    获取并注册支持中文、俄语等多语言的字体。
-    注册两个字体族：PDFCJK（中文/日文/韩文）和 PDFLatin（拉丁/西里尔），并返回组合字体族名称供 CSS 使用。
+    注册 PDF 用 Unicode 字体，返回 (CSS font-family 列表串, -pdf-font-name 主字体名)。
+
+    此前返回 ``"PDFCJK, PDFLatin"`` 并被写成 font-family: "PDFCJK, PDFLatin"，
+    会被解析成「一个名字叫 PDFCJK, PDFLatin 的字体」，ReportLab 无法匹配，回退 Helvetica 导致中文/俄语变方块。
     """
-    global _cjk_registered
-    if _cjk_registered:
-        return "PDFCJK, PDFLatin"
+    global _pdf_font_cache
+    if _pdf_font_cache is not None:
+        return _pdf_font_cache
 
     static_dir = _get_static_dir()
     font_dir = os.path.join(static_dir, "fonts")
     os.makedirs(font_dir, exist_ok=True)
+    windir = os.environ.get("WINDIR", "C:\\Windows")
 
-    # ---------- 中文字体 ----------
+    # ---------- 正文字体：优先 Arial Unicode（单文件覆盖中文+西里尔等） ----------
     cjk_candidates = [
+        os.path.join(windir, "Fonts", "arialuni.ttf"),
         os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
+        os.path.join(font_dir, "NotoSansSC-Regular.ttf"),
         os.path.join(font_dir, "simhei.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
-        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "simhei.ttf"),
+        os.path.join(windir, "Fonts", "simhei.ttf"),
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttf",
+        # 部分镜像中的 .ttc 为 CFF，ReportLab 不支持；保留在列表末尾，由探测跳过无效文件
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
     cjk_path = None
     for path in cjk_candidates:
-        if os.path.exists(path):
-            cjk_path = path
-            logger.info(f"找到中文字体文件: {cjk_path}")
-            break
+        if not os.path.exists(path):
+            continue
+        if not _reportlab_can_embed_font_file(path):
+            continue
+        cjk_path = path
+        logger.info("选用中文字体文件: %s", cjk_path)
+        break
     if not cjk_path:
         try:
-            noto_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
-            noto_local = os.path.join(font_dir, "NotoSansCJKsc-Regular.otf")
-            if not os.path.exists(noto_local):
-                logger.info("正在下载 Noto 中文字体，请稍候...")
-                req = urllib.request.Request(noto_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=30) as resp, open(noto_local, 'wb') as out:
-                    out.write(resp.read())
-            if os.path.exists(noto_local):
-                cjk_path = noto_local
-                logger.info("Noto 中文字体下载成功")
+            noto_variants: list[tuple[str, str]] = [
+                (
+                    os.path.join(font_dir, "NotoSansCJKsc-Regular.otf"),
+                    "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
+                ),
+                (
+                    os.path.join(font_dir, "NotoSansSC-Regular.ttf"),
+                    "https://github.com/googlefonts/noto-cjk/raw/main/Sans/SubsetTTF/SC/NotoSansSC-Regular.ttf",
+                ),
+            ]
+            for noto_local, noto_url in noto_variants:
+                if not os.path.exists(noto_local):
+                    logger.info("正在下载字体 %s …", os.path.basename(noto_local))
+                    req = urllib.request.Request(
+                        noto_url, headers={"User-Agent": "Mozilla/5.0"}
+                    )
+                    with urllib.request.urlopen(req, timeout=120) as resp, open(
+                        noto_local, "wb"
+                    ) as out:
+                        out.write(resp.read())
+                if os.path.exists(noto_local) and _reportlab_can_embed_font_file(noto_local):
+                    cjk_path = noto_local
+                    logger.info("Noto 中文字体可用: %s", cjk_path)
+                    break
+                if os.path.exists(noto_local):
+                    logger.warning(
+                        "已下载但 ReportLab 无法加载: %s，尝试下一格式", noto_local
+                    )
         except Exception as e:
-            logger.error(f"下载 Noto 中文字体失败: {e}")
+            logger.error("下载 Noto 中文字体失败: %s", e)
     if not cjk_path:
         raise RuntimeError("无法找到或下载支持中文的字体，请放置相应字体文件到 static/fonts 目录。")
 
-    # 注册中文字体族 PDFCJK
+    # 注册主字体族 PDFCJK（名称保留，便于与现有 HTML 逻辑一致）
     try:
-        pdfmetrics.registerFont(TTFont('PDFCJK', cjk_path))
-        pdfmetrics.registerFont(TTFont('PDFCJK-Bold', cjk_path))
-        pdfmetrics.registerFont(TTFont('PDFCJK-Italic', cjk_path))
-        pdfmetrics.registerFont(TTFont('PDFCJK-BoldItalic', cjk_path))
-        addMapping('PDFCJK', 0, 0, 'PDFCJK')
-        addMapping('PDFCJK', 1, 0, 'PDFCJK-Bold')
-        addMapping('PDFCJK', 0, 1, 'PDFCJK-Italic')
-        addMapping('PDFCJK', 1, 1, 'PDFCJK-BoldItalic')
-        logger.info(f"中文字体 {cjk_path} 注册成功，族名: PDFCJK")
+        _register_ttface("PDFCJK", cjk_path)
+        _register_ttface("PDFCJK-Bold", cjk_path)
+        _register_ttface("PDFCJK-Italic", cjk_path)
+        _register_ttface("PDFCJK-BoldItalic", cjk_path)
+        addMapping("PDFCJK", 0, 0, "PDFCJK")
+        addMapping("PDFCJK", 1, 0, "PDFCJK-Bold")
+        addMapping("PDFCJK", 0, 1, "PDFCJK-Italic")
+        addMapping("PDFCJK", 1, 1, "PDFCJK-BoldItalic")
+        logger.info("主 PDF 字体 %s 注册成功，族名: PDFCJK", cjk_path)
     except Exception as e:
-        logger.exception(f"中文字体注册失败 ({cjk_path}): {e}")
-        raise RuntimeError(f"中文字体注册失败 ({cjk_path}): {e}") from e
+        logger.exception("主 PDF 字体注册失败 (%s): %s", cjk_path, e)
+        raise RuntimeError(f"主 PDF 字体注册失败 ({cjk_path}): {e}") from e
 
-    # ---------- 拉丁/西里尔字体 ----------
-    latin_candidates = [
-        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "arialuni.ttf"),
-        os.path.join(font_dir, "NotoSans-Regular.ttf"),
-        os.path.join(font_dir, "DejaVuSans.ttf"),
-    ]
-    latin_path = None
-    for path in latin_candidates:
-        if os.path.exists(path):
+    css_names: list[str] = ["PDFCJK"]
+    pdf_name = "PDFCJK"
+
+    # Arial Unicode 已覆盖西里尔文，无需第二套字体
+    if not _is_arial_unicode_path(cjk_path):
+        # ---------- 西里尔补充：SimHei/部分 CJK 字体不含俄语字形 ----------
+        latin_candidates = [
+            os.path.join(windir, "Fonts", "arialuni.ttf"),
+            os.path.join(font_dir, "NotoSans-Regular.ttf"),
+            os.path.join(font_dir, "DejaVuSans.ttf"),
+        ]
+        latin_path = None
+        for path in latin_candidates:
+            if not os.path.exists(path):
+                continue
+            if not _reportlab_can_embed_font_file(path):
+                continue
             latin_path = path
-            logger.info(f"找到拉丁/西里尔字体文件: {latin_path}")
+            logger.info("找到西里尔补充字体: %s", latin_path)
             break
-    if not latin_path:
-        try:
-            noto_latin_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
-            noto_latin_local = os.path.join(font_dir, "NotoSans-Regular.ttf")
-            if not os.path.exists(noto_latin_local):
-                logger.info("正在下载 Noto Sans Latin/Cyrillic 字体，请稍候...")
-                req = urllib.request.Request(noto_latin_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=30) as resp, open(noto_latin_local, 'wb') as out:
-                    out.write(resp.read())
-            if os.path.exists(noto_latin_local):
-                latin_path = noto_latin_local
-                logger.info("Noto Sans Latin/Cyrillic 字体下载成功")
-        except Exception as e:
-            logger.error(f"下载 Noto Sans Latin/Cyrillic 字体失败: {e}")
-    if not latin_path:
-        latin_path = cjk_path
-        logger.warning("未找到专用拉丁/西里尔字体，使用中文字体作为回退，可能导致部分字符显示异常。")
+        if not latin_path:
+            try:
+                noto_latin_url = (
+                    "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/"
+                    "NotoSans/NotoSans-Regular.ttf"
+                )
+                noto_latin_local = os.path.join(font_dir, "NotoSans-Regular.ttf")
+                if not os.path.exists(noto_latin_local):
+                    logger.info("正在下载 Noto Sans（含西里尔文）…")
+                    req = urllib.request.Request(
+                        noto_latin_url,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    with urllib.request.urlopen(req, timeout=60) as resp, open(
+                        noto_latin_local, "wb"
+                    ) as out_f:
+                        out_f.write(resp.read())
+                if os.path.exists(noto_latin_local) and _reportlab_can_embed_font_file(
+                    noto_latin_local
+                ):
+                    latin_path = noto_latin_local
+                    logger.info("Noto Sans 下载成功")
+            except Exception as e:
+                logger.error("下载 Noto Sans 失败: %s", e)
+        if latin_path and os.path.abspath(latin_path) != os.path.abspath(cjk_path):
+            try:
+                _register_ttface("PDFLatin", latin_path)
+                _register_ttface("PDFLatin-Bold", latin_path)
+                _register_ttface("PDFLatin-Italic", latin_path)
+                _register_ttface("PDFLatin-BoldItalic", latin_path)
+                addMapping("PDFLatin", 0, 0, "PDFLatin")
+                addMapping("PDFLatin", 1, 0, "PDFLatin-Bold")
+                addMapping("PDFLatin", 0, 1, "PDFLatin-Italic")
+                addMapping("PDFLatin", 1, 1, "PDFLatin-BoldItalic")
+                css_names.append("PDFLatin")
+                logger.info("西里尔补充字体注册成功，族名: PDFLatin")
+            except Exception as e:
+                logger.exception("西里尔字体注册失败 (%s): %s", latin_path, e)
+                raise RuntimeError(f"西里尔字体注册失败 ({latin_path}): {e}") from e
+        elif not latin_path:
+            logger.warning(
+                "未找到独立西里尔字体且与正文字体相同，俄语等字符可能仍显示为方块。"
+            )
 
-    # 注册拉丁/西里尔字体族 PDFLatin
-    try:
-        pdfmetrics.registerFont(TTFont('PDFLatin', latin_path))
-        pdfmetrics.registerFont(TTFont('PDFLatin-Bold', latin_path))
-        pdfmetrics.registerFont(TTFont('PDFLatin-Italic', latin_path))
-        pdfmetrics.registerFont(TTFont('PDFLatin-BoldItalic', latin_path))
-        addMapping('PDFLatin', 0, 0, 'PDFLatin')
-        addMapping('PDFLatin', 1, 0, 'PDFLatin-Bold')
-        addMapping('PDFLatin', 0, 1, 'PDFLatin-Italic')
-        addMapping('PDFLatin', 1, 1, 'PDFLatin-BoldItalic')
-        logger.info(f"拉丁/西里尔字体 {latin_path} 注册成功，族名: PDFLatin")
-    except Exception as e:
-        logger.exception(f"拉丁/西里尔字体注册失败 ({latin_path}): {e}")
-        raise RuntimeError(f"拉丁/西里尔字体注册失败 ({latin_path}): {e}") from e
+    css_family = ", ".join(css_names) + ", sans-serif"
+    _pdf_font_cache = (css_family, pdf_name)
+    return _pdf_font_cache
 
-    _cjk_registered = True
-    return "PDFCJK, PDFLatin"
+
+def get_cjk_font_family() -> str:
+    """兼容旧调用：仅返回 CSS font-family 取值（含 fallback）。"""
+    return get_pdf_font_spec()[0]
 
 
 def _walk_text(node: dict[str, Any], parts: list[str]) -> None:
@@ -204,8 +300,13 @@ def tiptap_json_to_plain(doc_json: str) -> str:
     return "\n".join(parts)
 
 
-def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_settings: dict = None) -> str:
-    """将 TipTap JSON 转换为 HTML，使用已注册的字体，并设置 xhtml2pdf 专有属性"""
+def tiptap_json_to_html(
+    doc_json: str,
+    font_family_css: str = "PDFCJK, sans-serif",
+    pdf_font_name: str = "PDFCJK",
+    page_settings: dict = None,
+) -> str:
+    """将 TipTap JSON 转换为 HTML；font_family_css 为合法 CSS 列表（勿把整个列表包在一对引号里）。"""
     try:
         root = json.loads(doc_json)
     except json.JSONDecodeError:
@@ -324,9 +425,9 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
             }}
         }}
         body {{
-            font-family: "{font_family}", sans-serif;
-            -pdf-font-name: "{font_family}";
-            -pdf-encoding: "Identity-H";
+            font-family: {font_family_css};
+            -pdf-font-name: {pdf_font_name};
+            -pdf-encoding: Identity-H;
             font-size: 14px;
             line-height: 1.5;
             color: #333;
@@ -343,7 +444,7 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
             border: 1px solid black;
             padding: 6px;
             word-wrap: break-word;
-            font-family: "{font_family}", sans-serif;
+            font-family: {font_family_css};
         }}
         img {{
             max-width: 100%;
@@ -352,7 +453,7 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
             text-align: center;
             color: #555;
             font-size: 11px;
-            font-family: "{font_family}", sans-serif;
+            font-family: {font_family_css};
         }}
     </style>
     """
@@ -370,7 +471,7 @@ def tiptap_json_to_html(doc_json: str, font_family: str = "PDFCJK", page_setting
         <meta charset="utf-8">
         {style}
     </head>
-    <body style="font-family: {font_family};">
+    <body style="font-family: {font_family_css};">
         {footer}
         {body_html}
     </body>
@@ -647,12 +748,113 @@ def _fetch_resources(uri, rel):
     return uri
 
 
+def _write_pdf_from_html(html: str, dest: BytesIO) -> None:
+    """
+    生成 PDF。xhtml2pdf 只认 pisaContext.fontList，不能仅靠 pdfmetrics.registerFont，
+    否则 font-family 会回退 Helvetica，中文/俄语成方块。
+    """
+    import io
+
+    base_path = _get_static_dir()
+    context = pisaContext(base_path, debug=0, capacity=100 * 1024)
+    context.pathCallback = _fetch_resources
+
+    for reg_name in ("PDFCJK", "PDFLatin"):
+        if reg_name in pdfmetrics.getRegisteredFontNames():
+            context.registerFont(reg_name)
+
+    context = pisaStory(
+        html,
+        path=base_path,
+        link_callback=_fetch_resources,
+        debug=0,
+        default_css=DEFAULT_CSS,
+        xhtml=False,
+        encoding="utf-8",
+        context=context,
+        xml_output=None,
+    )
+
+    if context.err:
+        for mode, line, msg, _record in context.log:
+            if mode == "error":
+                logger.error("xhtml2pdf line %s: %s", line, msg)
+
+    if not context.story:
+        context.story = [Spacer(1, 1)]
+
+    for frag, anchor in context.anchorFrag:
+        if anchor not in context.anchorName:
+            frag.link = None
+
+    buf = io.BytesIO()
+    doc = PmlBaseDoc(
+        buf,
+        pagesize=context.pageSize,
+        author=context.meta["author"].strip(),
+        subject=context.meta["subject"].strip(),
+        keywords=[
+            x.strip()
+            for x in (context.meta.get("keywords") or "").strip().split(",")
+            if x.strip()
+        ],
+        title=context.meta["title"].strip(),
+        showBoundary=0,
+        encrypt=get_encrypt_instance(None),
+        allowSplitting=1,
+    )
+
+    if "body" in context.templateList:
+        body = context.templateList["body"]
+        del context.templateList["body"]
+    else:
+        x, y, w, h = getBox("1cm 1cm -1cm -1cm", context.pageSize)
+        body = PmlPageTemplate(
+            id="body",
+            frames=[
+                Frame(
+                    x,
+                    y,
+                    w,
+                    h,
+                    id="body",
+                    leftPadding=0,
+                    rightPadding=0,
+                    bottomPadding=0,
+                    topPadding=0,
+                )
+            ],
+            pagesize=context.pageSize,
+        )
+
+    doc.addPageTemplates([body] + list(context.templateList.values()))
+
+    if context.multiBuild:
+        doc.multiBuild(context.story)
+    else:
+        doc.build(context.story)
+
+    output = io.BytesIO()
+    output, has_bg = WaterMarks.process_doc(context, buf, output)
+    if not has_bg:
+        output = buf
+
+    data = output.getvalue()
+    dest.write(data)
+    cleanFiles()
+
+
 def export_pdf_bytes(doc_json: str, page_settings: dict = None) -> bytes:
     """从 TipTap JSON 生成 PDF 文档，使用已注册的通用字体"""
-    font_family = get_cjk_font_family()
-    html = tiptap_json_to_html(doc_json or "{}", font_family=font_family, page_settings=page_settings)
+    font_family_css, pdf_font_name = get_pdf_font_spec()
+    html = tiptap_json_to_html(
+        doc_json or "{}",
+        font_family_css=font_family_css,
+        pdf_font_name=pdf_font_name,
+        page_settings=page_settings,
+    )
     out = BytesIO()
-    pisa.CreatePDF(src=html, dest=out, encoding="utf-8", link_callback=_fetch_resources)
+    _write_pdf_from_html(html, out)
     return out.getvalue()
 
 
